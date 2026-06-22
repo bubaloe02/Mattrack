@@ -1,548 +1,717 @@
-<!DOCTYPE html><html lang="nl">
+<!DOCTYPE html>
+<html lang="nl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>MatTrack – Materiaalregistratie</title>
+<title>MatTrack v2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap');
-  :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --surface2: #22263a;
-    --border: #2e3348;
-    --accent: #f5a623;
-    --accent2: #e8883a;
-    --green: #3ecf6c;
-    --red: #ff4d4d;
-    --text: #e8eaf0;
-    --muted: #7b82a0;
-    --mono: 'DM Mono', monospace;
-    --sans: 'Inter', sans-serif;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    max-width: 480px;
-    margin: 0 auto;
-    padding-bottom: 80px;
-  }
-  .header {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 14px 16px 12px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-  .header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .logo {
-    font-family: var(--mono);
-    font-size: 18px;
-    font-weight: 500;
-    color: var(--accent);
-    letter-spacing: -0.5px;
-  }
-  .logo span { color: var(--muted); }
-  .project-badge {
-    font-size: 11px;
-    font-family: var(--mono);
-    color: var(--muted);
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 3px 8px;
-    cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 160px;
-  }
-  .modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    z-index: 200;
-    align-items: flex-end;
-    justify-content: center;
-  }
-  .modal-overlay.active { display: flex; }
-  .modal {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px 16px 0 0;
-    padding: 24px 20px 36px;
-    width: 100%;
-    max-width: 480px;
-  }
-  .modal h3 {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 16px;
-  }
-  .modal input, .modal select {
-    width: 100%;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 15px;
-    padding: 12px 14px;
-    margin-bottom: 10px;
-    outline: none;
-  }
-  .modal input:focus, .modal select:focus { border-color: var(--accent); }
-  .modal-btns { display: flex; gap: 10px; margin-top: 6px; }
-  .btn {
-    flex: 1;
-    padding: 13px;
-    border-radius: 10px;
-    border: none;
-    font-family: var(--sans);
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.15s;
-  }
-  .btn:active { opacity: 0.75; }
-  .btn-primary { background: var(--accent); color: #000; }
-  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
-  .scanner-section {
-    padding: 16px;
-    border-bottom: 1px solid var(--border);
-  }
-  .scanner-btn {
-    width: 100%;
-    background: var(--accent);
-    color: #000;
-    border: none;
-    border-radius: 12px;
-    padding: 15px;
-    font-size: 16px;
-    font-weight: 700;
-    font-family: var(--sans);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    transition: opacity 0.15s;
-  }
-  .scanner-btn:active { opacity: 0.8; }
-  .scanner-btn svg { width: 22px; height: 22px; flex-shrink: 0; }
-  .manual-row {
-    display: flex;
-    gap: 8px;
-    margin-top: 10px;
-  }
-  .manual-row input {
-    flex: 1;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 13px;
-    padding: 11px 13px;
-    outline: none;
-  }
-  .manual-row input:focus { border-color: var(--accent); }
-  .manual-row input::placeholder { color: var(--muted); }
-  .icon-btn {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--text);
-    padding: 11px 15px;
-    cursor: pointer;
-    font-size: 16px;
-    transition: opacity 0.15s;
-  }
-  .icon-btn:active { opacity: 0.7; }
-  .camera-container {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: #000;
-    z-index: 300;
-    flex-direction: column;
-  }
-  .camera-container.active { display: flex; }
-  #interactive {
-    flex: 1;
-    overflow: hidden;
-    position: relative;
-  }
-  #interactive video { width: 100%; height: 100%; object-fit: cover; }
-  #interactive canvas { display: none; }
-  .scan-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-  }
-  .scan-frame {
-    width: 260px;
-    height: 140px;
-    border: 2px solid var(--accent);
-    border-radius: 12px;
-    box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
-    position: relative;
-  }
-  .scan-line {
-    position: absolute;
-    left: 8px; right: 8px;
-    height: 2px;
-    background: var(--accent);
-    animation: scanline 1.8s ease-in-out infinite;
-    box-shadow: 0 0 8px var(--accent);
-  }
-  @keyframes scanline {
-    0% { top: 12px; opacity: 1; }
-    50% { top: calc(100% - 14px); opacity: 0.6; }
-    100% { top: 12px; opacity: 1; }
-  }
-  .cam-hint {
-    position: absolute;
-    bottom: 90px;
-    left: 0; right: 0;
-    text-align: center;
-    color: rgba(255,255,255,0.7);
-    font-size: 13px;
-    font-family: var(--mono);
-  }
-  .cam-close {
-    position: absolute;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(255,255,255,0.15);
-    border: 1px solid rgba(255,255,255,0.25);
-    border-radius: 40px;
-    color: #fff;
-    font-size: 15px;
-    font-weight: 600;
-    font-family: var(--sans);
-    padding: 13px 36px;
-    cursor: pointer;
-    backdrop-filter: blur(6px);
-  }
-  .lookup-modal {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.75);
-    z-index: 400;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
-  .lookup-modal.active { display: flex; }
-  .lookup-box {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px 20px;
-    width: 100%;
-    max-width: 400px;
-  }
-  .lookup-box h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-  .lookup-code {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--accent);
-    margin-bottom: 16px;
-  }
-  .lookup-box input, .lookup-box select {
-    width: 100%;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 15px;
-    padding: 12px 14px;
-    margin-bottom: 10px;
-    outline: none;
-  }
-  .lookup-box input:focus, .lookup-box select:focus { border-color: var(--accent); }
-  .qty-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 14px;
-  }
-  .qty-row label { font-size: 13px; color: var(--muted); white-space: nowrap; }
-  .qty-ctrl {
-    display: flex;
-    align-items: center;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  .qty-ctrl button {
-    background: none;
-    border: none;
-    color: var(--text);
-    font-size: 20px;
-    width: 42px;
-    height: 42px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .qty-ctrl button:active { background: var(--border); }
-  .qty-ctrl span {
-    font-family: var(--mono);
-    font-size: 16px;
-    font-weight: 500;
-    min-width: 36px;
-    text-align: center;
-  }
-  .list-header {
-    padding: 16px 16px 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .list-title {
-    font-size: 11px;
-    font-family: var(--mono);
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-  }
-  .item-count {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--accent);
-  }
-  .section-group { margin-bottom: 4px; }
-  .section-label {
-    font-size: 10px;
-    font-family: var(--mono);
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    padding: 8px 16px 4px;
-    border-top: 1px solid var(--border);
-  }
-  .item-card {
-    display: flex;
-    align-items: center;
-    padding: 12px 16px;
-    gap: 12px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg);
-    transition: background 0.1s;
-  }
-  .item-card:active { background: var(--surface); }
-  .item-info { flex: 1; min-width: 0; }
-  .item-name {
-    font-size: 14px;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .item-meta {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .item-controls {
-    display: flex;
-    align-items: center;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-  .item-controls button {
-    background: none;
-    border: none;
-    color: var(--text);
-    font-size: 17px;
-    width: 36px;
-    height: 36px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .item-controls button:active { background: var(--border); }
-  .item-qty {
-    font-family: var(--mono);
-    font-size: 15px;
-    font-weight: 500;
-    min-width: 32px;
-    text-align: center;
-    color: var(--accent);
-  }
-  .item-delete {
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 16px;
-    width: 32px;
-    height: 36px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 4px;
-    flex-shrink: 0;
-  }
-  .item-delete:active { color: var(--red); }
-  .empty {
-    text-align: center;
-    padding: 48px 24px;
-    color: var(--muted);
-  }
-  .empty-icon { font-size: 40px; margin-bottom: 12px; }
-  .empty p { font-size: 14px; line-height: 1.6; }
-  .bottom-bar {
-    position: fixed;
-    bottom: 0; left: 50%;
-    transform: translateX(-50%);
-    width: 100%;
-    max-width: 480px;
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    padding: 12px 16px;
-    display: flex;
-    gap: 10px;
-    z-index: 100;
-  }
-  .bottom-bar .btn { flex: 1; font-size: 14px; padding: 12px; }
-  .toast {
-    position: fixed;
-    top: 16px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-80px);
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 10px 18px;
-    font-size: 13px;
-    font-family: var(--mono);
-    color: var(--text);
-    z-index: 999;
-    transition: transform 0.3s ease;
-    white-space: nowrap;
-    max-width: 90vw;
-  }
-  .toast.show { transform: translateX(-50%) translateY(0); }
-  .toast.success { border-color: var(--green); color: var(--green); }
-  .toast.error { border-color: var(--red); color: var(--red); }
-  #pdf-output {
-    display: none;
-    font-family: Arial, sans-serif;
-    color: #111;
-    padding: 32px;
-    background: #fff;
-  }
-  .pdf-header { margin-bottom: 24px; border-bottom: 2px solid #e5850a; padding-bottom: 12px; }
-  .pdf-header h1 { font-size: 22px; color: #e5850a; }
-  .pdf-header p { font-size: 12px; color: #666; margin-top: 4px; }
-  .pdf-section { margin-bottom: 20px; }
-  .pdf-section-title {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #888;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 4px;
-    margin-bottom: 8px;
-  }
-  .pdf-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid #f5f5f5;
-    font-size: 13px;
-  }
-  .pdf-item-left { flex: 1; }
-  .pdf-item-name { font-weight: 600; }
-  .pdf-item-code { font-size: 11px; color: #999; font-family: monospace; }
-  .pdf-item-qty { font-weight: 700; color: #e5850a; font-size: 15px; white-space: nowrap; padding-left: 16px; }
-  .pdf-footer { margin-top: 32px; font-size: 11px; color: #aaa; border-top: 1px solid #eee; padding-top: 10px; }
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --bg: #0c0e14;
+  --surface: #161923;
+  --surface2: #1e2232;
+  --surface3: #252a3d;
+  --border: #2a304a;
+  --accent: #f5a623;
+  --accent-dim: rgba(245,166,35,0.12);
+  --green: #2ecc71;
+  --red: #e74c3c;
+  --blue: #4a9eff;
+  --text: #e8eaf2;
+  --muted: #6b7494;
+  --mono: 'DM Mono', monospace;
+  --sans: 'Inter', sans-serif;
+  --radius: 12px;
+}
+
+.large-mode {
+  --text-scale: 1.18;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: 90px;
+  font-size: 1em;
+}
+
+body.large-mode { font-size: 1.12em; }
+
+/* ── HEADER ── */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px 10px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-row1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.logo {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+}
+.logo sup {
+  font-size: 9px;
+  color: var(--muted);
+  vertical-align: super;
+  margin-left: 2px;
+}
+.header-actions { display: flex; gap: 6px; align-items: center; }
+.hbtn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-family: var(--sans);
+  white-space: nowrap;
+}
+.hbtn:active { opacity: 0.7; }
+.hbtn.accent { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+
+.project-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.project-bar:active { opacity: 0.8; }
+.project-name {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.project-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ── TABS ── */
+.tabs {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 93px;
+  z-index: 99;
+}
+.tab {
+  flex: 1;
+  padding: 10px 4px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── SCANNER ── */
+.scanner-section {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.scan-btn {
+  width: 100%;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: var(--radius);
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 800;
+  font-family: var(--sans);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  letter-spacing: -0.3px;
+}
+.scan-btn:active { opacity: 0.8; }
+.scan-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+.manual-row { display: flex; gap: 8px; margin-top: 10px; }
+.manual-row input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 11px 13px;
+  outline: none;
+}
+.manual-row input:focus { border-color: var(--accent); }
+.manual-row input::placeholder { color: var(--muted); }
+.icon-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 11px 15px;
+  cursor: pointer;
+  font-size: 16px;
+}
+.icon-btn:active { opacity: 0.7; }
+
+/* ── LIST HEADER ── */
+.list-header {
+  padding: 12px 16px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.list-title {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.item-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--accent);
+}
+
+/* ── SECTION GROUP ── */
+.section-group { margin-bottom: 2px; }
+.section-label {
+  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  padding: 8px 16px 3px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── ITEM CARD ── */
+.item-card {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.item-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  position: relative;
+}
+.item-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.item-thumb input { display: none; }
+.item-info { flex: 1; min-width: 0; }
+.item-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.large-mode .item-name { font-size: 16px; }
+.item-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-note {
+  font-size: 11px;
+  color: var(--blue);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.item-note.empty { color: var(--muted); font-style: italic; }
+.item-controls {
+  display: flex;
+  align-items: center;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.item-controls button {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 18px;
+  width: 34px;
+  height: 38px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.large-mode .item-controls button { width: 42px; height: 46px; font-size: 22px; }
+.item-controls button:active { background: var(--border); }
+.item-qty {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 500;
+  min-width: 30px;
+  text-align: center;
+  color: var(--accent);
+}
+body.large-mode .item-qty { font-size: 18px; min-width: 36px; }
+.item-del {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  width: 28px;
+  height: 38px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.item-del:active { color: var(--red); }
+
+/* ── EMPTY ── */
+.empty {
+  text-align: center;
+  padding: 52px 24px;
+  color: var(--muted);
+}
+.empty-icon { font-size: 44px; margin-bottom: 14px; }
+.empty p { font-size: 14px; line-height: 1.7; }
+
+/* ── BOTTOM BAR ── */
+.bottom-bar {
+  position: fixed;
+  bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 10px 14px;
+  display: flex;
+  gap: 8px;
+  z-index: 100;
+}
+.btn {
+  flex: 1;
+  padding: 12px 8px;
+  border-radius: 10px;
+  border: none;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+.btn:active { opacity: 0.75; }
+.btn-primary { background: var(--accent); color: #000; }
+.btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-blue { background: var(--blue); color: #fff; }
+.btn-green { background: var(--green); color: #000; }
+
+/* ── CAMERA ── */
+.camera-container {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 500;
+  flex-direction: column;
+}
+.camera-container.active { display: flex; }
+#interactive { flex: 1; overflow: hidden; position: relative; }
+#interactive video { width: 100%; height: 100%; object-fit: cover; }
+#interactive canvas { display: none; }
+.scan-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.scan-frame {
+  width: 260px; height: 140px;
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+  position: relative;
+}
+.scan-line {
+  position: absolute; left: 8px; right: 8px; height: 2px;
+  background: var(--accent);
+  animation: scanline 1.8s ease-in-out infinite;
+  box-shadow: 0 0 8px var(--accent);
+}
+@keyframes scanline {
+  0% { top: 12px; opacity: 1; }
+  50% { top: calc(100% - 14px); opacity: 0.6; }
+  100% { top: 12px; opacity: 1; }
+}
+.cam-label {
+  position: absolute; bottom: 90px; left: 0; right: 0;
+  text-align: center; color: rgba(255,255,255,0.65);
+  font-size: 13px; font-family: var(--mono);
+}
+.cam-close {
+  position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 40px; color: #fff; font-size: 15px; font-weight: 600;
+  font-family: var(--sans); padding: 13px 36px; cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+/* ── MODALS ── */
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.72); z-index: 300;
+  align-items: flex-end; justify-content: center;
+}
+.overlay.active { display: flex; }
+.overlay.center { align-items: center; padding: 20px; }
+.sheet {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 18px 18px 0 0; padding: 22px 18px 36px;
+  width: 100%; max-width: 480px;
+}
+.sheet.rounded { border-radius: 18px; }
+.sheet h3 { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+.field {
+  width: 100%; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 9px;
+  color: var(--text); font-family: var(--sans); font-size: 15px;
+  padding: 12px 14px; margin-bottom: 10px; outline: none;
+}
+.field:focus { border-color: var(--accent); }
+.field::placeholder { color: var(--muted); }
+select.field option { background: var(--surface2); }
+.modal-btns { display: flex; gap: 10px; margin-top: 8px; }
+.modal-btns .btn { flex: 1; padding: 13px; font-size: 14px; }
+.qty-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.qty-row label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.qty-ctrl {
+  display: flex; align-items: center;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 9px; overflow: hidden;
+}
+.qty-ctrl button {
+  background: none; border: none; color: var(--text);
+  font-size: 20px; width: 44px; height: 44px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.qty-ctrl button:active { background: var(--border); }
+.qty-ctrl span {
+  font-family: var(--mono); font-size: 16px; font-weight: 500;
+  min-width: 38px; text-align: center;
+}
+.lookup-code { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-bottom: 14px; }
+
+/* ── HISTORY TAB ── */
+.history-list { padding: 0 0 8px; }
+.history-card {
+  margin: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.history-card-header {
+  padding: 12px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer;
+}
+.history-card-header:active { background: var(--surface2); }
+.hc-name { font-size: 14px; font-weight: 700; }
+.hc-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+.hc-actions { display: flex; gap: 6px; }
+.hc-btn {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text); font-size: 11px;
+  font-weight: 600; font-family: var(--sans);
+  padding: 5px 10px; cursor: pointer; white-space: nowrap;
+}
+.hc-btn:active { opacity: 0.7; }
+.hc-btn.danger { color: var(--red); }
+.history-items { padding: 0 14px 12px; display: none; }
+.history-items.open { display: block; }
+.hi-row {
+  display: flex; justify-content: space-between;
+  padding: 5px 0; border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.hi-row:last-child { border-bottom: none; }
+.hi-name { color: var(--text); }
+.hi-qty { font-family: var(--mono); color: var(--accent); font-weight: 600; }
+
+/* ── TEMPLATES TAB ── */
+.template-list { padding: 0 0 8px; }
+.template-card {
+  margin: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.template-card-header {
+  padding: 12px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.tc-name { font-size: 14px; font-weight: 700; }
+.tc-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+.tc-actions { display: flex; gap: 6px; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; top: 14px; left: 50%;
+  transform: translateX(-50%) translateY(-80px);
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 18px;
+  font-size: 13px; font-family: var(--mono); color: var(--text);
+  z-index: 999; transition: transform 0.28s ease;
+  white-space: nowrap; max-width: 90vw; pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.success { border-color: var(--green); color: var(--green); }
+.toast.error { border-color: var(--red); color: var(--red); }
+.toast.info { border-color: var(--blue); color: var(--blue); }
+
+/* ── SETTINGS ROW ── */
+.settings-section { padding: 16px; }
+.settings-section h4 { font-size: 11px; font-family: var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.setting-row:active { opacity: 0.8; }
+.setting-label { font-size: 14px; font-weight: 600; }
+.setting-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.toggle {
+  width: 44px; height: 26px;
+  background: var(--surface3); border-radius: 13px;
+  position: relative; flex-shrink: 0;
+  transition: background 0.2s;
+}
+.toggle.on { background: var(--accent); }
+.toggle::after {
+  content: ''; position: absolute;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; top: 3px; left: 3px;
+  transition: left 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.toggle.on::after { left: 21px; }
+
+/* ── PDF ── */
+#pdf-out {
+  display: none; font-family: Arial, sans-serif;
+  color: #111; padding: 32px; background: #fff;
+}
+.pdf-h { margin-bottom: 22px; border-bottom: 2px solid #e5850a; padding-bottom: 10px; }
+.pdf-h h1 { font-size: 20px; color: #e5850a; }
+.pdf-h p { font-size: 11px; color: #666; margin-top: 3px; }
+.pdf-sec { margin-bottom: 18px; }
+.pdf-sec-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #888; border-bottom: 1px solid #eee; padding-bottom: 3px; margin-bottom: 7px; }
+.pdf-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f5f5f5; font-size: 12px; }
+.pdf-left { flex: 1; }
+.pdf-name { font-weight: 700; }
+.pdf-code { font-size: 10px; color: #aaa; font-family: monospace; }
+.pdf-note { font-size: 10px; color: #4a9eff; }
+.pdf-qty { font-weight: 800; color: #e5850a; font-size: 14px; padding-left: 14px; white-space: nowrap; }
+.pdf-foot { margin-top: 28px; font-size: 10px; color: #bbb; border-top: 1px solid #eee; padding-top: 8px; }
 </style>
 </head>
 <body>
+
+<!-- HEADER -->
 <div class="header">
-  <div class="header-top">
-    <div class="logo">Mat<span>Track</span></div>
-    <div class="project-badge" id="projectBadge" onclick="openProjectModal()">📋 Nieuw project</div>
+  <div class="header-row1">
+    <div class="logo">MatTrack<sup>v2</sup></div>
+    <div class="header-actions">
+      <button class="hbtn" onclick="toggleLargeMode()" id="largeModeBtn">🔠</button>
+      <button class="hbtn" onclick="showWhatsapp()">📲</button>
+      <button class="hbtn accent" onclick="exportPDF()">📄 PDF</button>
+    </div>
+  </div>
+  <div class="project-bar" onclick="openProjectModal()">
+    <span style="font-size:15px">📋</span>
+    <span class="project-name" id="projName">Nieuw project — tik om in te stellen</span>
+    <span class="project-meta" id="projMeta"></span>
   </div>
 </div>
-<div class="scanner-section">
-  <button class="scanner-btn" onclick="openCamera()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-      <path d="M3 9V6a1 1 0 011-1h3M3 15v3a1 1 0 001 1h3M15 5h3a1 1 0 011 1v3M15 19h3a1 1 0 001-1v-3"/>
-      <rect x="7" y="7" width="10" height="10" rx="1"/>
-    </svg>
-    Scan barcode
-  </button>
-  <div class="manual-row">
-    <input type="text" id="manualInput" placeholder="Handmatig: naam of code…" onkeydown="if(event.key==='Enter')manualAdd()">
-    <button class="icon-btn" onclick="manualAdd()">＋</button>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('current')" id="tab-current">Huidig</div>
+  <div class="tab" onclick="switchTab('history')" id="tab-history">Geschiedenis</div>
+  <div class="tab" onclick="switchTab('templates')" id="tab-templates">Templates</div>
+  <div class="tab" onclick="switchTab('settings')" id="tab-settings">Instellingen</div>
+</div>
+
+<!-- CURRENT TAB -->
+<div id="view-current">
+  <div class="scanner-section">
+    <button class="scan-btn" onclick="openCamera()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M3 9V6a1 1 0 011-1h3M3 15v3a1 1 0 001 1h3M15 5h3a1 1 0 011 1v3M15 19h3a1 1 0 001-1v-3"/>
+        <rect x="7" y="7" width="10" height="10" rx="1"/>
+      </svg>
+      Scan barcode
+    </button>
+    <div class="manual-row">
+      <input type="text" id="manualInput" placeholder="Handmatig: naam of code…" onkeydown="if(event.key==='Enter')manualAdd()">
+      <button class="icon-btn" onclick="manualAdd()">＋</button>
+    </div>
   </div>
+  <div class="list-header">
+    <span class="list-title">Gebruikte materialen</span>
+    <span class="item-count" id="itemCount">0 items</span>
+  </div>
+  <div id="itemsList"></div>
 </div>
-<div class="list-header">
-  <span class="list-title">Gebruikte materialen</span>
-  <span class="item-count" id="itemCount">0 items</span>
+
+<!-- HISTORY TAB -->
+<div id="view-history" style="display:none">
+  <div style="padding:14px 14px 0; display:flex; justify-content:flex-end;">
+    <button class="hbtn" onclick="clearHistory()" style="color:var(--red)">Alles wissen</button>
+  </div>
+  <div class="history-list" id="historyList"></div>
 </div>
-<div id="itemsList"></div>
-<div class="bottom-bar">
-  <button class="btn btn-ghost" onclick="clearAll()">🗑 Leegmaken</button>
-  <button class="btn btn-primary" onclick="exportPDF()">📄 Export PDF</button>
+
+<!-- TEMPLATES TAB -->
+<div id="view-templates" style="display:none">
+  <div style="padding:14px 14px 0; display:flex; justify-content:flex-end;">
+    <button class="hbtn accent" onclick="saveAsTemplate()">＋ Sla huidig op als template</button>
+  </div>
+  <div class="template-list" id="templateList"></div>
 </div>
-<div class="modal-overlay" id="projectModal">
-  <div class="modal">
-    <h3>Project instellen</h3>
-    <input type="text" id="projectName" placeholder="Projectnaam (bijv. Scania kenteken)" />
-    <input type="text" id="projectClient" placeholder="Klant / voertuig (optioneel)" />
-    <div class="modal-btns">
-      <button class="btn btn-ghost" onclick="closeProjectModal()">Annuleren</button>
-      <button class="btn btn-primary" onclick="saveProject()">Opslaan</button>
+
+<!-- SETTINGS TAB -->
+<div id="view-settings" style="display:none">
+  <div class="settings-section">
+    <h4>Weergave</h4>
+    <div class="setting-row" onclick="toggleLargeMode()">
+      <div>
+        <div class="setting-label">Grote modus</div>
+        <div class="setting-desc">Grotere tekst en knoppen voor handschoenen</div>
+      </div>
+      <div class="toggle" id="largeModeToggle"></div>
+    </div>
+    <div class="setting-row" onclick="toggleBeep()">
+      <div>
+        <div class="setting-label">Scan geluid</div>
+        <div class="setting-desc">Piep bij succesvolle scan</div>
+      </div>
+      <div class="toggle" id="beepToggle"></div>
+    </div>
+  </div>
+  <div class="settings-section" style="padding-top:0">
+    <h4>Data</h4>
+    <div class="setting-row" onclick="clearLibrary()" style="cursor:pointer">
+      <div>
+        <div class="setting-label">Artikel bibliotheek wissen</div>
+        <div class="setting-desc">Verwijdert alle opgeslagen barcodes</div>
+      </div>
+      <span style="color:var(--red); font-size:18px">›</span>
+    </div>
+    <div class="setting-row" onclick="clearAll()" style="cursor:pointer">
+      <div>
+        <div class="setting-label">Huidig project leegmaken</div>
+        <div class="setting-desc">Verwijdert alle items uit huidig project</div>
+      </div>
+      <span style="color:var(--red); font-size:18px">›</span>
     </div>
   </div>
 </div>
+
+<!-- BOTTOM BAR (current tab only) -->
+<div class="bottom-bar" id="bottomBar">
+  <button class="btn btn-ghost" onclick="finishProject()">✅ Afronden</button>
+  <button class="btn btn-primary" onclick="exportPDF()">📄 Export PDF</button>
+</div>
+
+<!-- CAMERA -->
 <div class="camera-container" id="cameraContainer">
   <div id="interactive">
     <div class="scan-overlay">
       <div class="scan-frame"><div class="scan-line"></div></div>
     </div>
-    <div class="cam-hint">Richt op barcode</div>
+    <div class="cam-label">Richt op barcode</div>
   </div>
   <button class="cam-close" onclick="closeCamera()">Sluiten</button>
 </div>
-<div class="lookup-modal" id="lookupModal">
-  <div class="lookup-box">
-    <h3 id="lookupTitle">Onbekende barcode</h3>
+
+<!-- PROJECT MODAL -->
+<div class="overlay" id="projectModal">
+  <div class="sheet">
+    <h3>Project instellen</h3>
+    <input class="field" type="text" id="projNameInput" placeholder="Projectnaam (bijv. Scania FT-123-B)">
+    <input class="field" type="text" id="projClientInput" placeholder="Klant / voertuig (optioneel)">
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal('projectModal')">Annuleren</button>
+      <button class="btn btn-primary" onclick="saveProject()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOOKUP MODAL -->
+<div class="overlay center" id="lookupModal">
+  <div class="sheet rounded">
+    <h3 id="lookupTitle">Artikel toevoegen</h3>
     <div class="lookup-code" id="lookupCode"></div>
-    <input type="text" id="lookupName" placeholder="Naam artikel…" />
-    <select id="lookupSection">
+    <input class="field" type="text" id="lookupName" placeholder="Naam artikel…">
+    <select class="field" id="lookupSection">
       <option value="Lampen">Lampen</option>
       <option value="Bevestigingsmaterialen (lampen)">Bevestiging (lampen)</option>
       <option value="Bevestigingsmaterialen (algemeen)">Bevestiging (algemeen)</option>
@@ -554,52 +723,135 @@
     <div class="qty-row">
       <label>Aantal:</label>
       <div class="qty-ctrl">
-        <button onclick="adjustLookupQty(-1)">−</button>
+        <button onclick="adjLQty(-1)">−</button>
         <span id="lookupQty">1</span>
-        <button onclick="adjustLookupQty(1)">＋</button>
+        <button onclick="adjLQty(1)">＋</button>
       </div>
     </div>
     <div class="modal-btns">
-      <button class="btn btn-ghost" onclick="closeLookupModal()">Annuleren</button>
+      <button class="btn btn-ghost" onclick="closeModal('lookupModal')">Annuleren</button>
       <button class="btn btn-primary" onclick="confirmLookup()">Toevoegen</button>
     </div>
   </div>
 </div>
+
+<!-- NOTE MODAL -->
+<div class="overlay center" id="noteModal">
+  <div class="sheet rounded">
+    <h3>Notitie</h3>
+    <input class="field" type="text" id="noteInput" placeholder="bijv. kapot, retour, reserve…">
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal('noteModal')">Annuleren</button>
+      <button class="btn btn-primary" onclick="saveNote()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- TEMPLATE NAME MODAL -->
+<div class="overlay center" id="templateModal">
+  <div class="sheet rounded">
+    <h3>Template opslaan</h3>
+    <input class="field" type="text" id="templateNameInput" placeholder="Naam van template…">
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal('templateModal')">Annuleren</button>
+      <button class="btn btn-primary" onclick="confirmSaveTemplate()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- WHATSAPP MODAL -->
+<div class="overlay center" id="waModal">
+  <div class="sheet rounded">
+    <h3>📲 Delen via WhatsApp</h3>
+    <p style="font-size:13px; color:var(--muted); margin-bottom:14px; line-height:1.6">Stuur een overzicht van het huidig project als tekst.</p>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal('waModal')">Annuleren</button>
+      <button class="btn btn-green" onclick="sendWhatsapp()">Openen in WhatsApp</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
-<div id="pdf-output"></div>
+<div id="pdf-out"></div>
+
 <script>
-const SECTIONS = ['Lampen','Bevestigingsmaterialen (lampen)','Bevestigingsmaterialen (algemeen)','Bekabeling & Elektra','Leidingen & Rubber','Lijm & Afdichting','Overig'];
-let items = JSON.parse(localStorage.getItem('mattrack_items') || '[]');
-let library = JSON.parse(localStorage.getItem('mattrack_library') || '{}');
-let project = JSON.parse(localStorage.getItem('mattrack_project') || '{"name":"","client":""}');
-let lookupQty = 1;
+// ── CONSTANTS ─────────────────────────────────────────────────────────────────
+const SECTIONS = [
+  'Lampen',
+  'Bevestigingsmaterialen (lampen)',
+  'Bevestigingsmaterialen (algemeen)',
+  'Bekabeling & Elektra',
+  'Leidingen & Rubber',
+  'Lijm & Afdichting',
+  'Overig'
+];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let items    = load('mt_items', []);
+let library  = load('mt_lib', {});
+let project  = load('mt_proj', { name: '', client: '' });
+let history  = load('mt_history', []);
+let templates= load('mt_templates', []);
+let settings = load('mt_settings', { largeMode: false, beep: true });
+
+let lookupQty   = 1;
 let pendingCode = null;
+let activeNote  = null;
 let scannerRunning = false;
-let scanCooldown = false;
+let scanCooldown   = false;
+let currentTab  = 'current';
+
+// ── PERSIST ───────────────────────────────────────────────────────────────────
+function load(k, def) {
+  try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; }
+}
 function save() {
-  localStorage.setItem('mattrack_items', JSON.stringify(items));
-  localStorage.setItem('mattrack_library', JSON.stringify(library));
-  localStorage.setItem('mattrack_project', JSON.stringify(project));
+  localStorage.setItem('mt_items',     JSON.stringify(items));
+  localStorage.setItem('mt_lib',       JSON.stringify(library));
+  localStorage.setItem('mt_proj',      JSON.stringify(project));
+  localStorage.setItem('mt_history',   JSON.stringify(history));
+  localStorage.setItem('mt_templates', JSON.stringify(templates));
+  localStorage.setItem('mt_settings',  JSON.stringify(settings));
 }
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  ['current','history','templates','settings'].forEach(t => {
+    document.getElementById('view-' + t).style.display = t === tab ? '' : 'none';
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+  });
+  document.getElementById('bottomBar').style.display = tab === 'current' ? '' : 'none';
+  if (tab === 'history')   renderHistory();
+  if (tab === 'templates') renderTemplates();
+}
+
+// ── PROJECT ───────────────────────────────────────────────────────────────────
 function openProjectModal() {
-  document.getElementById('projectName').value = project.name;
-  document.getElementById('projectClient').value = project.client;
-  document.getElementById('projectModal').classList.add('active');
+  document.getElementById('projNameInput').value   = project.name;
+  document.getElementById('projClientInput').value = project.client;
+  openModal('projectModal');
 }
-function closeProjectModal() { document.getElementById('projectModal').classList.remove('active'); }
 function saveProject() {
-  project.name = document.getElementById('projectName').value.trim() || 'Project';
-  project.client = document.getElementById('projectClient').value.trim();
-  save(); updateProjectBadge(); closeProjectModal();
+  project.name   = document.getElementById('projNameInput').value.trim() || 'Project';
+  project.client = document.getElementById('projClientInput').value.trim();
+  save(); updateProjectBar(); closeModal('projectModal');
 }
-function updateProjectBadge() {
-  document.getElementById('projectBadge').textContent = project.name ? '📋 ' + project.name : '📋 Nieuw project';
+function updateProjectBar() {
+  document.getElementById('projName').textContent = project.name || 'Nieuw project — tik om in te stellen';
+  document.getElementById('projMeta').textContent = project.client || '';
 }
+
+// ── CAMERA ────────────────────────────────────────────────────────────────────
 function openCamera() {
   document.getElementById('cameraContainer').classList.add('active');
   if (scannerRunning) return;
   Quagga.init({
-    inputStream: { name: 'Live', type: 'LiveStream', target: document.getElementById('interactive'), constraints: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } },
+    inputStream: {
+      name: 'Live', type: 'LiveStream',
+      target: document.getElementById('interactive'),
+      constraints: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    },
     decoder: { readers: ['ean_reader','ean_8_reader','code_128_reader','code_39_reader'] },
     locate: true
   }, err => {
@@ -612,123 +864,426 @@ function openCamera() {
     if (!code) return;
     scanCooldown = true;
     setTimeout(() => scanCooldown = false, 2500);
-    closeCamera(); handleCode(code);
+    if (settings.beep) playBeep();
+    closeCamera();
+    handleCode(code);
   });
 }
 function closeCamera() {
   document.getElementById('cameraContainer').classList.remove('active');
   if (scannerRunning) { Quagga.stop(); scannerRunning = false; }
 }
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = 880; o.type = 'sine';
+    g.gain.setValueAtTime(0.3, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+    o.start(); o.stop(ctx.currentTime + 0.18);
+  } catch(e) {}
+}
+
+// ── CODE HANDLER ──────────────────────────────────────────────────────────────
 async function handleCode(code) {
-  if (library[code]) { openLookupModal(code, library[code].name, library[code].section, true); return; }
+  if (library[code]) {
+    openLookupModal(code, library[code].name, library[code].section, true);
+    return;
+  }
   showToast('⌛ Zoeken…');
   try {
-    const res = await fetch('https://world.openfoodfacts.org/api/v2/product/' + code + '.json');
-    const data = await res.json();
-    if (data.status === 1 && data.product?.product_name) { openLookupModal(code, data.product.product_name, 'Overig'); return; }
-  } catch(e) {}
-  try {
-    const res = await fetch('https://api.upcitemdb.com/prod/trial/lookup?upc=' + code);
-    const data = await res.json();
-    if (data.items && data.items[0]?.title) { openLookupModal(code, data.items[0].title, 'Overig'); return; }
+    const r = await fetch('https://api.upcitemdb.com/prod/trial/lookup?upc=' + code);
+    const d = await r.json();
+    if (d.items?.[0]?.title) { openLookupModal(code, d.items[0].title, 'Overig'); return; }
   } catch(e) {}
   openLookupModal(code, '', 'Lampen');
 }
+
+// ── MANUAL ADD ────────────────────────────────────────────────────────────────
 function manualAdd() {
-  const val = document.getElementById('manualInput').value.trim();
-  if (!val) return;
+  const v = document.getElementById('manualInput').value.trim();
+  if (!v) return;
   document.getElementById('manualInput').value = '';
-  openLookupModal(null, val, 'Overig');
+  openLookupModal(null, v, 'Overig');
 }
-function openLookupModal(code, name, section, fromLibrary = false) {
+
+// ── LOOKUP MODAL ──────────────────────────────────────────────────────────────
+function openLookupModal(code, name, section, fromLib = false) {
   pendingCode = code; lookupQty = 1;
   document.getElementById('lookupQty').textContent = '1';
   document.getElementById('lookupName').value = name || '';
   document.getElementById('lookupCode').textContent = code ? 'Code: ' + code : '';
-  document.getElementById('lookupTitle').textContent = fromLibrary ? 'Bekend artikel — hoeveel?' : code ? 'Nieuw artikel — geef naam' : 'Artikel toevoegen';
+  document.getElementById('lookupTitle').textContent = fromLib
+    ? 'Bekend artikel — hoeveel?' : code ? 'Nieuw artikel — geef naam' : 'Artikel toevoegen';
   const sel = document.getElementById('lookupSection');
-  for (let opt of sel.options) { if (opt.value === section) { sel.value = section; break; } }
-  document.getElementById('lookupModal').classList.add('active');
-  setTimeout(() => { if (!name) document.getElementById('lookupName').focus(); }, 100);
+  for (let o of sel.options) { if (o.value === section) { sel.value = section; break; } }
+  openModal('lookupModal');
+  setTimeout(() => { if (!name) document.getElementById('lookupName').focus(); }, 120);
 }
-function closeLookupModal() { document.getElementById('lookupModal').classList.remove('active'); pendingCode = null; }
-function adjustLookupQty(d) { lookupQty = Math.max(1, lookupQty + d); document.getElementById('lookupQty').textContent = lookupQty; }
+function adjLQty(d) {
+  lookupQty = Math.max(1, lookupQty + d);
+  document.getElementById('lookupQty').textContent = lookupQty;
+}
 function confirmLookup() {
-  const name = document.getElementById('lookupName').value.trim();
+  const name    = document.getElementById('lookupName').value.trim();
   const section = document.getElementById('lookupSection').value;
   if (!name) { showToast('Geef een naam op', 'error'); return; }
   const code = pendingCode;
-  if (code) { library[code] = { name, section }; save(); }
-  const existing = items.find(i => (code && i.code === code) || (!code && i.name === name && i.section === section));
-  if (existing) { existing.qty += lookupQty; } else { items.push({ id: Date.now(), code: code || null, name, section, qty: lookupQty }); }
-  save(); render(); closeLookupModal(); showToast('✓ ' + name + ' toegevoegd', 'success');
+  if (code) { library[code] = { name, section }; }
+  const existing = items.find(i =>
+    (code && i.code === code) ||
+    (!code && i.name === name && i.section === section)
+  );
+  if (existing) { existing.qty += lookupQty; }
+  else { items.push({ id: Date.now(), code: code || null, name, section, qty: lookupQty, note: '', photo: null }); }
+  save(); render(); closeModal('lookupModal');
+  showToast('✓ ' + name + ' toegevoegd', 'success');
 }
-function changeQty(id, delta) {
-  const item = items.find(i => i.id === id);
-  if (!item) return;
-  item.qty = Math.max(0, item.qty + delta);
-  if (item.qty === 0) items = items.filter(i => i.id !== id);
+
+// ── ITEM CONTROLS ─────────────────────────────────────────────────────────────
+function changeQty(id, d) {
+  const it = items.find(i => i.id === id);
+  if (!it) return;
+  it.qty = Math.max(0, it.qty + d);
+  if (it.qty === 0) items = items.filter(i => i.id !== id);
   save(); render();
 }
-function deleteItem(id) { items = items.filter(i => i.id !== id); save(); render(); }
-function clearAll() {
-  if (!items.length) return;
-  if (confirm('Alle items verwijderen?')) { items = []; save(); render(); }
+function deleteItem(id) {
+  items = items.filter(i => i.id !== id);
+  save(); render();
 }
+
+// ── NOTE ──────────────────────────────────────────────────────────────────────
+function openNote(id) {
+  activeNote = id;
+  const it = items.find(i => i.id === id);
+  document.getElementById('noteInput').value = it?.note || '';
+  openModal('noteModal');
+  setTimeout(() => document.getElementById('noteInput').focus(), 120);
+}
+function saveNote() {
+  const it = items.find(i => i.id === activeNote);
+  if (it) { it.note = document.getElementById('noteInput').value.trim(); save(); render(); }
+  closeModal('noteModal'); activeNote = null;
+}
+
+// ── PHOTO ─────────────────────────────────────────────────────────────────────
+function triggerPhoto(id) {
+  const inp = document.getElementById('photoInput_' + id);
+  if (inp) inp.click();
+}
+function handlePhoto(id, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const it = items.find(i => i.id === id);
+    if (it) { it.photo = e.target.result; save(); render(); }
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
 function render() {
   const el = document.getElementById('itemsList');
   document.getElementById('itemCount').textContent = items.length + ' items';
   if (!items.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">📦</div><p>Nog geen materialen geregistreerd.<br>Scan een barcode of voeg handmatig toe.</p></div>';
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📦</div><p>Nog geen materialen.<br>Scan een barcode of voeg handmatig toe.</p></div>';
     return;
   }
   const grouped = {};
   SECTIONS.forEach(s => grouped[s] = []);
-  items.forEach(item => { const sec = grouped[item.section] !== undefined ? item.section : 'Overig'; grouped[sec].push(item); });
+  items.forEach(it => {
+    const s = grouped[it.section] !== undefined ? it.section : 'Overig';
+    grouped[s].push(it);
+  });
   let html = '';
   SECTIONS.forEach(sec => {
-    const group = grouped[sec];
-    if (!group.length) return;
-    html += '<div class="section-group"><div class="section-label">' + sec + '</div>';
-    group.forEach(item => {
-      html += '<div class="item-card"><div class="item-info"><div class="item-name">' + escHtml(item.name) + '</div><div class="item-meta">' + (item.code || 'handmatig') + '</div></div><div class="item-controls"><button onclick="changeQty(' + item.id + ', -1)">−</button><span class="item-qty">' + item.qty + '</span><button onclick="changeQty(' + item.id + ', 1)">＋</button></div><button class="item-delete" onclick="deleteItem(' + item.id + ')">✕</button></div>';
+    const g = grouped[sec];
+    if (!g.length) return;
+    html += '<div class="section-group"><div class="section-label">' + esc(sec) + '</div>';
+    g.forEach(it => {
+      const thumb = it.photo
+        ? `<img src="${it.photo}" alt="">`
+        : '📷';
+      const noteText = it.note ? esc(it.note) : '+ notitie';
+      const noteClass = it.note ? 'item-note' : 'item-note empty';
+      html += `<div class="item-card">
+        <div class="item-thumb" onclick="triggerPhoto(${it.id})">
+          ${it.photo ? `<img src="${it.photo}" alt="">` : '📷'}
+          <input type="file" accept="image/*" capture="environment"
+            id="photoInput_${it.id}" onchange="handlePhoto(${it.id}, this)">
+        </div>
+        <div class="item-info">
+          <div class="item-name">${esc(it.name)}</div>
+          <div class="item-sub">${it.code || 'handmatig'}</div>
+          <div class="${noteClass}" onclick="openNote(${it.id})">${noteText}</div>
+        </div>
+        <div class="item-controls">
+          <button onclick="changeQty(${it.id},-1)">−</button>
+          <span class="item-qty">${it.qty}</span>
+          <button onclick="changeQty(${it.id},1)">＋</button>
+        </div>
+        <button class="item-del" onclick="deleteItem(${it.id})">✕</button>
+      </div>`;
     });
     html += '</div>';
   });
   el.innerHTML = html;
 }
-function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function exportPDF() {
-  if (!items.length) { showToast('Geen items om te exporteren', 'error'); return; }
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('nl-NL', { day:'2-digit', month:'2-digit', year:'numeric' });
-  const timeStr = now.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' });
+
+// ── FINISH PROJECT ────────────────────────────────────────────────────────────
+function finishProject() {
+  if (!items.length) { showToast('Geen items om af te ronden', 'error'); return; }
+  if (!confirm('Project afronden en opslaan in geschiedenis?')) return;
+  const entry = {
+    id: Date.now(),
+    name: project.name || 'Project',
+    client: project.client,
+    date: new Date().toLocaleDateString('nl-NL'),
+    items: JSON.parse(JSON.stringify(items))
+  };
+  history.unshift(entry);
+  items = [];
+  save(); render();
+  showToast('✓ Opgeslagen in geschiedenis', 'success');
+}
+
+// ── HISTORY ───────────────────────────────────────────────────────────────────
+function renderHistory() {
+  const el = document.getElementById('historyList');
+  if (!history.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🗂</div><p>Nog geen afgeronde projecten.</p></div>';
+    return;
+  }
+  el.innerHTML = history.map(h => {
+    const total = h.items.reduce((s, i) => s + i.qty, 0);
+    const rows = h.items.map(i =>
+      `<div class="hi-row"><span class="hi-name">${esc(i.name)}</span><span class="hi-qty">×${i.qty}</span></div>`
+    ).join('');
+    return `<div class="history-card">
+      <div class="history-card-header" onclick="toggleHistory(${h.id})">
+        <div>
+          <div class="hc-name">${esc(h.name)}</div>
+          <div class="hc-meta">${h.date}${h.client ? ' · ' + esc(h.client) : ''} · ${total} stuks</div>
+        </div>
+        <div class="hc-actions">
+          <button class="hc-btn" onclick="event.stopPropagation(); loadFromHistory(${h.id})">↩ Herladen</button>
+          <button class="hc-btn" onclick="event.stopPropagation(); exportHistoryPDF(${h.id})">📄</button>
+          <button class="hc-btn danger" onclick="event.stopPropagation(); deleteHistory(${h.id})">✕</button>
+        </div>
+      </div>
+      <div class="history-items" id="hi-${h.id}">${rows}</div>
+    </div>`;
+  }).join('');
+}
+function toggleHistory(id) {
+  const el = document.getElementById('hi-' + id);
+  el.classList.toggle('open');
+}
+function loadFromHistory(id) {
+  const h = history.find(x => x.id === id);
+  if (!h) return;
+  if (items.length && !confirm('Huidig project vervangen?')) return;
+  items = JSON.parse(JSON.stringify(h.items));
+  project.name = h.name; project.client = h.client || '';
+  save(); updateProjectBar(); render(); switchTab('current');
+  showToast('Project herladen', 'info');
+}
+function deleteHistory(id) {
+  if (!confirm('Verwijder dit project uit geschiedenis?')) return;
+  history = history.filter(h => h.id !== id);
+  save(); renderHistory();
+}
+function clearHistory() {
+  if (!history.length) return;
+  if (!confirm('Hele geschiedenis wissen?')) return;
+  history = []; save(); renderHistory();
+}
+
+// ── TEMPLATES ─────────────────────────────────────────────────────────────────
+function saveAsTemplate() {
+  if (!items.length) { showToast('Geen items om op te slaan', 'error'); return; }
+  document.getElementById('templateNameInput').value = project.name || '';
+  openModal('templateModal');
+  setTimeout(() => document.getElementById('templateNameInput').focus(), 120);
+}
+function confirmSaveTemplate() {
+  const name = document.getElementById('templateNameInput').value.trim();
+  if (!name) { showToast('Geef een naam op', 'error'); return; }
+  templates.unshift({
+    id: Date.now(), name,
+    items: JSON.parse(JSON.stringify(items.map(i => ({ ...i, qty: i.qty, note: '', photo: null }))))
+  });
+  save(); closeModal('templateModal'); renderTemplates();
+  showToast('✓ Template opgeslagen', 'success');
+}
+function renderTemplates() {
+  const el = document.getElementById('templateList');
+  if (!templates.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📑</div><p>Nog geen templates.<br>Rond een project af of sla het huidig project op.</p></div>';
+    return;
+  }
+  el.innerHTML = templates.map(t => {
+    return `<div class="template-card">
+      <div class="template-card-header">
+        <div>
+          <div class="tc-name">${esc(t.name)}</div>
+          <div class="tc-meta">${t.items.length} artikelen</div>
+        </div>
+        <div class="tc-actions">
+          <button class="hc-btn accent" onclick="loadTemplate(${t.id})">Laden</button>
+          <button class="hc-btn danger" onclick="deleteTemplate(${t.id})">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function loadTemplate(id) {
+  const t = templates.find(x => x.id === id);
+  if (!t) return;
+  if (items.length && !confirm('Huidig project vervangen met template?')) return;
+  items = JSON.parse(JSON.stringify(t.items));
+  project.name = t.name;
+  save(); updateProjectBar(); render(); switchTab('current');
+  showToast('Template geladen', 'info');
+}
+function deleteTemplate(id) {
+  if (!confirm('Template verwijderen?')) return;
+  templates = templates.filter(t => t.id !== id);
+  save(); renderTemplates();
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+function toggleLargeMode() {
+  settings.largeMode = !settings.largeMode;
+  applySettings(); save();
+}
+function toggleBeep() {
+  settings.beep = !settings.beep;
+  applySettings(); save();
+}
+function applySettings() {
+  document.body.classList.toggle('large-mode', settings.largeMode);
+  document.getElementById('largeModeToggle').classList.toggle('on', settings.largeMode);
+  document.getElementById('beepToggle').classList.toggle('on', settings.beep);
+}
+function clearLibrary() {
+  if (!confirm('Alle opgeslagen barcodes verwijderen?')) return;
+  library = {}; save(); showToast('Bibliotheek gewist', 'info');
+}
+function clearAll() {
+  if (!items.length) return;
+  if (!confirm('Alle items verwijderen?')) return;
+  items = []; save(); render();
+}
+
+// ── WHATSAPP ──────────────────────────────────────────────────────────────────
+function showWhatsapp() { openModal('waModal'); }
+function sendWhatsapp() {
+  closeModal('waModal');
+  if (!items.length) { showToast('Geen items om te delen', 'error'); return; }
   const grouped = {};
   SECTIONS.forEach(s => grouped[s] = []);
-  items.forEach(item => { const sec = grouped[item.section] !== undefined ? item.section : 'Overig'; grouped[sec].push(item); });
-  let sectionsHtml = '';
+  items.forEach(it => { const s = grouped[it.section] !== undefined ? it.section : 'Overig'; grouped[s].push(it); });
+  let msg = `*MatTrack — ${project.name || 'Project'}*`;
+  if (project.client) msg += ` (${project.client})`;
+  msg += `\n${new Date().toLocaleDateString('nl-NL')}\n\n`;
   SECTIONS.forEach(sec => {
-    const group = grouped[sec];
-    if (!group.length) return;
-    let rows = group.map(item => '<div class="pdf-item"><div class="pdf-item-left"><div class="pdf-item-name">' + escHtml(item.name) + '</div><div class="pdf-item-code">' + (item.code || 'handmatig') + '</div></div><div class="pdf-item-qty">× ' + item.qty + '</div></div>').join('');
-    sectionsHtml += '<div class="pdf-section"><div class="pdf-section-title">' + sec + '</div>' + rows + '</div>';
+    const g = grouped[sec];
+    if (!g.length) return;
+    msg += `*${sec}*\n`;
+    g.forEach(it => {
+      msg += `• ${it.name} × ${it.qty}`;
+      if (it.code) msg += ` [${it.code}]`;
+      if (it.note) msg += ` — ${it.note}`;
+      msg += '\n';
+    });
+    msg += '\n';
   });
-  const totalItems = items.reduce((sum, i) => sum + i.qty, 0);
-  document.getElementById('pdf-output').innerHTML = '<div class="pdf-header"><h1>Materiaalregistratie</h1><p>' + (project.name || 'Project') + (project.client ? ' — ' + project.client : '') + ' | ' + dateStr + ' ' + timeStr + ' | ' + totalItems + ' stuks totaal</p></div>' + sectionsHtml + '<div class="pdf-footer">Gegenereerd met MatTrack · ' + dateStr + '</div>';
-  const pdfEl = document.getElementById('pdf-output');
-  pdfEl.style.display = 'block';
-  const filename = 'materialen_' + (project.name || 'project').replace(/\s+/g,'_') + '_' + dateStr.replace(/\//g,'-') + '.pdf';
-  html2pdf().set({ margin: 0, filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(pdfEl).save().then(() => { pdfEl.style.display = 'none'; showToast('✓ PDF opgeslagen', 'success'); });
+  const total = items.reduce((s, i) => s + i.qty, 0);
+  msg += `Totaal: ${total} stuks`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
 }
+
+// ── PDF ───────────────────────────────────────────────────────────────────────
+function exportPDF() {
+  if (!items.length) { showToast('Geen items om te exporteren', 'error'); return; }
+  generatePDF(items, project.name || 'Project', project.client);
+}
+function exportHistoryPDF(id) {
+  const h = history.find(x => x.id === id);
+  if (!h) return;
+  generatePDF(h.items, h.name, h.client, h.date);
+}
+function generatePDF(itms, name, client, dateStr) {
+  const now = new Date();
+  const d = dateStr || now.toLocaleDateString('nl-NL', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const t = now.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' });
+  const grouped = {};
+  SECTIONS.forEach(s => grouped[s] = []);
+  itms.forEach(it => { const s = grouped[it.section] !== undefined ? it.section : 'Overig'; grouped[s].push(it); });
+  let secsHtml = '';
+  SECTIONS.forEach(sec => {
+    const g = grouped[sec];
+    if (!g.length) return;
+    const rows = g.map(it => `
+      <div class="pdf-row">
+        <div class="pdf-left">
+          <div class="pdf-name">${esc(it.name)}</div>
+          <div class="pdf-code">${it.code || 'handmatig'}${it.note ? ' · ' + esc(it.note) : ''}</div>
+        </div>
+        <div class="pdf-qty">× ${it.qty}</div>
+      </div>`).join('');
+    secsHtml += `<div class="pdf-sec"><div class="pdf-sec-title">${sec}</div>${rows}</div>`;
+  });
+  const total = itms.reduce((s, i) => s + i.qty, 0);
+  document.getElementById('pdf-out').innerHTML = `
+    <div class="pdf-h">
+      <h1>Materiaalregistratie</h1>
+      <p>${esc(name)}${client ? ' — ' + esc(client) : ''} &nbsp;|&nbsp; ${d}${dateStr ? '' : ' ' + t} &nbsp;|&nbsp; ${total} stuks totaal</p>
+    </div>
+    ${secsHtml}
+    <div class="pdf-foot">Gegenereerd met MatTrack v2 · ${d}</div>
+  `;
+  const el = document.getElementById('pdf-out');
+  el.style.display = 'block';
+  const fn = 'materialen_' + name.replace(/\s+/g,'_') + '_' + d.replace(/\//g,'-') + '.pdf';
+  html2pdf().set({
+    margin: 0, filename: fn,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  }).from(el).save().then(() => {
+    el.style.display = 'none';
+    showToast('✓ PDF opgeslagen', 'success');
+  });
+}
+
+// ── MODAL HELPERS ─────────────────────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
 let toastTimer;
 function showToast(msg, type = '') {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast show' + (type ? ' ' + type : '');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2300);
 }
-updateProjectBadge();
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+applySettings();
+updateProjectBar();
 render();
 </script>
 </body>
