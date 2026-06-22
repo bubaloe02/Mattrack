@@ -1,0 +1,735 @@
+<!DOCTYPE html><html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MatTrack – Materiaalregistratie</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap');
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3348;
+    --accent: #f5a623;
+    --accent2: #e8883a;
+    --green: #3ecf6c;
+    --red: #ff4d4d;
+    --text: #e8eaf0;
+    --muted: #7b82a0;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    max-width: 480px;
+    margin: 0 auto;
+    padding-bottom: 80px;
+  }
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--muted); }
+  .project-badge {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+  }
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    padding: 24px 20px 36px;
+    width: 100%;
+    max-width: 480px;
+  }
+  .modal h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .modal input, .modal select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    outline: none;
+  }
+  .modal input:focus, .modal select:focus { border-color: var(--accent); }
+  .modal-btns { display: flex; gap: 10px; margin-top: 6px; }
+  .btn {
+    flex: 1;
+    padding: 13px;
+    border-radius: 10px;
+    border: none;
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn:active { opacity: 0.75; }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .scanner-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .scanner-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 12px;
+    padding: 15px;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: var(--sans);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: opacity 0.15s;
+  }
+  .scanner-btn:active { opacity: 0.8; }
+  .scanner-btn svg { width: 22px; height: 22px; flex-shrink: 0; }
+  .manual-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .manual-row input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 11px 13px;
+    outline: none;
+  }
+  .manual-row input:focus { border-color: var(--accent); }
+  .manual-row input::placeholder { color: var(--muted); }
+  .icon-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    padding: 11px 15px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: opacity 0.15s;
+  }
+  .icon-btn:active { opacity: 0.7; }
+  .camera-container {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 300;
+    flex-direction: column;
+  }
+  .camera-container.active { display: flex; }
+  #interactive {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+  #interactive video { width: 100%; height: 100%; object-fit: cover; }
+  #interactive canvas { display: none; }
+  .scan-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .scan-frame {
+    width: 260px;
+    height: 140px;
+    border: 2px solid var(--accent);
+    border-radius: 12px;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+    position: relative;
+  }
+  .scan-line {
+    position: absolute;
+    left: 8px; right: 8px;
+    height: 2px;
+    background: var(--accent);
+    animation: scanline 1.8s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  @keyframes scanline {
+    0% { top: 12px; opacity: 1; }
+    50% { top: calc(100% - 14px); opacity: 0.6; }
+    100% { top: 12px; opacity: 1; }
+  }
+  .cam-hint {
+    position: absolute;
+    bottom: 90px;
+    left: 0; right: 0;
+    text-align: center;
+    color: rgba(255,255,255,0.7);
+    font-size: 13px;
+    font-family: var(--mono);
+  }
+  .cam-close {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 40px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: var(--sans);
+    padding: 13px 36px;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+  }
+  .lookup-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 400;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .lookup-modal.active { display: flex; }
+  .lookup-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 20px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .lookup-box h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .lookup-code {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+  .lookup-box input, .lookup-box select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    outline: none;
+  }
+  .lookup-box input:focus, .lookup-box select:focus { border-color: var(--accent); }
+  .qty-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .qty-row label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .qty-ctrl {
+    display: flex;
+    align-items: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .qty-ctrl button {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 20px;
+    width: 42px;
+    height: 42px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .qty-ctrl button:active { background: var(--border); }
+  .qty-ctrl span {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 500;
+    min-width: 36px;
+    text-align: center;
+  }
+  .list-header {
+    padding: 16px 16px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .list-title {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .item-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+  }
+  .section-group { margin-bottom: 4px; }
+  .section-label {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 8px 16px 4px;
+    border-top: 1px solid var(--border);
+  }
+  .item-card {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    transition: background 0.1s;
+  }
+  .item-card:active { background: var(--surface); }
+  .item-info { flex: 1; min-width: 0; }
+  .item-name {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .item-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .item-controls {
+    display: flex;
+    align-items: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .item-controls button {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 17px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .item-controls button:active { background: var(--border); }
+  .item-qty {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 500;
+    min-width: 32px;
+    text-align: center;
+    color: var(--accent);
+  }
+  .item-delete {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 16px;
+    width: 32px;
+    height: 36px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+    flex-shrink: 0;
+  }
+  .item-delete:active { color: var(--red); }
+  .empty {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--muted);
+  }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty p { font-size: 14px; line-height: 1.6; }
+  .bottom-bar {
+    position: fixed;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex;
+    gap: 10px;
+    z-index: 100;
+  }
+  .bottom-bar .btn { flex: 1; font-size: 14px; padding: 12px; }
+  .toast {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-family: var(--mono);
+    color: var(--text);
+    z-index: 999;
+    transition: transform 0.3s ease;
+    white-space: nowrap;
+    max-width: 90vw;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error { border-color: var(--red); color: var(--red); }
+  #pdf-output {
+    display: none;
+    font-family: Arial, sans-serif;
+    color: #111;
+    padding: 32px;
+    background: #fff;
+  }
+  .pdf-header { margin-bottom: 24px; border-bottom: 2px solid #e5850a; padding-bottom: 12px; }
+  .pdf-header h1 { font-size: 22px; color: #e5850a; }
+  .pdf-header p { font-size: 12px; color: #666; margin-top: 4px; }
+  .pdf-section { margin-bottom: 20px; }
+  .pdf-section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+  }
+  .pdf-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #f5f5f5;
+    font-size: 13px;
+  }
+  .pdf-item-left { flex: 1; }
+  .pdf-item-name { font-weight: 600; }
+  .pdf-item-code { font-size: 11px; color: #999; font-family: monospace; }
+  .pdf-item-qty { font-weight: 700; color: #e5850a; font-size: 15px; white-space: nowrap; padding-left: 16px; }
+  .pdf-footer { margin-top: 32px; font-size: 11px; color: #aaa; border-top: 1px solid #eee; padding-top: 10px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-top">
+    <div class="logo">Mat<span>Track</span></div>
+    <div class="project-badge" id="projectBadge" onclick="openProjectModal()">📋 Nieuw project</div>
+  </div>
+</div>
+<div class="scanner-section">
+  <button class="scanner-btn" onclick="openCamera()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <path d="M3 9V6a1 1 0 011-1h3M3 15v3a1 1 0 001 1h3M15 5h3a1 1 0 011 1v3M15 19h3a1 1 0 001-1v-3"/>
+      <rect x="7" y="7" width="10" height="10" rx="1"/>
+    </svg>
+    Scan barcode
+  </button>
+  <div class="manual-row">
+    <input type="text" id="manualInput" placeholder="Handmatig: naam of code…" onkeydown="if(event.key==='Enter')manualAdd()">
+    <button class="icon-btn" onclick="manualAdd()">＋</button>
+  </div>
+</div>
+<div class="list-header">
+  <span class="list-title">Gebruikte materialen</span>
+  <span class="item-count" id="itemCount">0 items</span>
+</div>
+<div id="itemsList"></div>
+<div class="bottom-bar">
+  <button class="btn btn-ghost" onclick="clearAll()">🗑 Leegmaken</button>
+  <button class="btn btn-primary" onclick="exportPDF()">📄 Export PDF</button>
+</div>
+<div class="modal-overlay" id="projectModal">
+  <div class="modal">
+    <h3>Project instellen</h3>
+    <input type="text" id="projectName" placeholder="Projectnaam (bijv. Scania kenteken)" />
+    <input type="text" id="projectClient" placeholder="Klant / voertuig (optioneel)" />
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeProjectModal()">Annuleren</button>
+      <button class="btn btn-primary" onclick="saveProject()">Opslaan</button>
+    </div>
+  </div>
+</div>
+<div class="camera-container" id="cameraContainer">
+  <div id="interactive">
+    <div class="scan-overlay">
+      <div class="scan-frame"><div class="scan-line"></div></div>
+    </div>
+    <div class="cam-hint">Richt op barcode</div>
+  </div>
+  <button class="cam-close" onclick="closeCamera()">Sluiten</button>
+</div>
+<div class="lookup-modal" id="lookupModal">
+  <div class="lookup-box">
+    <h3 id="lookupTitle">Onbekende barcode</h3>
+    <div class="lookup-code" id="lookupCode"></div>
+    <input type="text" id="lookupName" placeholder="Naam artikel…" />
+    <select id="lookupSection">
+      <option value="Lampen">Lampen</option>
+      <option value="Bevestigingsmaterialen (lampen)">Bevestiging (lampen)</option>
+      <option value="Bevestigingsmaterialen (algemeen)">Bevestiging (algemeen)</option>
+      <option value="Bekabeling & Elektra">Bekabeling & Elektra</option>
+      <option value="Leidingen & Rubber">Leidingen & Rubber</option>
+      <option value="Lijm & Afdichting">Lijm & Afdichting</option>
+      <option value="Overig">Overig</option>
+    </select>
+    <div class="qty-row">
+      <label>Aantal:</label>
+      <div class="qty-ctrl">
+        <button onclick="adjustLookupQty(-1)">−</button>
+        <span id="lookupQty">1</span>
+        <button onclick="adjustLookupQty(1)">＋</button>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeLookupModal()">Annuleren</button>
+      <button class="btn btn-primary" onclick="confirmLookup()">Toevoegen</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div id="pdf-output"></div>
+<script>
+const SECTIONS = ['Lampen','Bevestigingsmaterialen (lampen)','Bevestigingsmaterialen (algemeen)','Bekabeling & Elektra','Leidingen & Rubber','Lijm & Afdichting','Overig'];
+let items = JSON.parse(localStorage.getItem('mattrack_items') || '[]');
+let library = JSON.parse(localStorage.getItem('mattrack_library') || '{}');
+let project = JSON.parse(localStorage.getItem('mattrack_project') || '{"name":"","client":""}');
+let lookupQty = 1;
+let pendingCode = null;
+let scannerRunning = false;
+let scanCooldown = false;
+function save() {
+  localStorage.setItem('mattrack_items', JSON.stringify(items));
+  localStorage.setItem('mattrack_library', JSON.stringify(library));
+  localStorage.setItem('mattrack_project', JSON.stringify(project));
+}
+function openProjectModal() {
+  document.getElementById('projectName').value = project.name;
+  document.getElementById('projectClient').value = project.client;
+  document.getElementById('projectModal').classList.add('active');
+}
+function closeProjectModal() { document.getElementById('projectModal').classList.remove('active'); }
+function saveProject() {
+  project.name = document.getElementById('projectName').value.trim() || 'Project';
+  project.client = document.getElementById('projectClient').value.trim();
+  save(); updateProjectBadge(); closeProjectModal();
+}
+function updateProjectBadge() {
+  document.getElementById('projectBadge').textContent = project.name ? '📋 ' + project.name : '📋 Nieuw project';
+}
+function openCamera() {
+  document.getElementById('cameraContainer').classList.add('active');
+  if (scannerRunning) return;
+  Quagga.init({
+    inputStream: { name: 'Live', type: 'LiveStream', target: document.getElementById('interactive'), constraints: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } },
+    decoder: { readers: ['ean_reader','ean_8_reader','code_128_reader','code_39_reader'] },
+    locate: true
+  }, err => {
+    if (err) { showToast('Camera niet beschikbaar', 'error'); closeCamera(); return; }
+    Quagga.start(); scannerRunning = true;
+  });
+  Quagga.onDetected(result => {
+    if (scanCooldown) return;
+    const code = result.codeResult.code;
+    if (!code) return;
+    scanCooldown = true;
+    setTimeout(() => scanCooldown = false, 2500);
+    closeCamera(); handleCode(code);
+  });
+}
+function closeCamera() {
+  document.getElementById('cameraContainer').classList.remove('active');
+  if (scannerRunning) { Quagga.stop(); scannerRunning = false; }
+}
+async function handleCode(code) {
+  if (library[code]) { openLookupModal(code, library[code].name, library[code].section, true); return; }
+  showToast('⌛ Zoeken…');
+  try {
+    const res = await fetch('https://world.openfoodfacts.org/api/v2/product/' + code + '.json');
+    const data = await res.json();
+    if (data.status === 1 && data.product?.product_name) { openLookupModal(code, data.product.product_name, 'Overig'); return; }
+  } catch(e) {}
+  try {
+    const res = await fetch('https://api.upcitemdb.com/prod/trial/lookup?upc=' + code);
+    const data = await res.json();
+    if (data.items && data.items[0]?.title) { openLookupModal(code, data.items[0].title, 'Overig'); return; }
+  } catch(e) {}
+  openLookupModal(code, '', 'Lampen');
+}
+function manualAdd() {
+  const val = document.getElementById('manualInput').value.trim();
+  if (!val) return;
+  document.getElementById('manualInput').value = '';
+  openLookupModal(null, val, 'Overig');
+}
+function openLookupModal(code, name, section, fromLibrary = false) {
+  pendingCode = code; lookupQty = 1;
+  document.getElementById('lookupQty').textContent = '1';
+  document.getElementById('lookupName').value = name || '';
+  document.getElementById('lookupCode').textContent = code ? 'Code: ' + code : '';
+  document.getElementById('lookupTitle').textContent = fromLibrary ? 'Bekend artikel — hoeveel?' : code ? 'Nieuw artikel — geef naam' : 'Artikel toevoegen';
+  const sel = document.getElementById('lookupSection');
+  for (let opt of sel.options) { if (opt.value === section) { sel.value = section; break; } }
+  document.getElementById('lookupModal').classList.add('active');
+  setTimeout(() => { if (!name) document.getElementById('lookupName').focus(); }, 100);
+}
+function closeLookupModal() { document.getElementById('lookupModal').classList.remove('active'); pendingCode = null; }
+function adjustLookupQty(d) { lookupQty = Math.max(1, lookupQty + d); document.getElementById('lookupQty').textContent = lookupQty; }
+function confirmLookup() {
+  const name = document.getElementById('lookupName').value.trim();
+  const section = document.getElementById('lookupSection').value;
+  if (!name) { showToast('Geef een naam op', 'error'); return; }
+  const code = pendingCode;
+  if (code) { library[code] = { name, section }; save(); }
+  const existing = items.find(i => (code && i.code === code) || (!code && i.name === name && i.section === section));
+  if (existing) { existing.qty += lookupQty; } else { items.push({ id: Date.now(), code: code || null, name, section, qty: lookupQty }); }
+  save(); render(); closeLookupModal(); showToast('✓ ' + name + ' toegevoegd', 'success');
+}
+function changeQty(id, delta) {
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+  item.qty = Math.max(0, item.qty + delta);
+  if (item.qty === 0) items = items.filter(i => i.id !== id);
+  save(); render();
+}
+function deleteItem(id) { items = items.filter(i => i.id !== id); save(); render(); }
+function clearAll() {
+  if (!items.length) return;
+  if (confirm('Alle items verwijderen?')) { items = []; save(); render(); }
+}
+function render() {
+  const el = document.getElementById('itemsList');
+  document.getElementById('itemCount').textContent = items.length + ' items';
+  if (!items.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📦</div><p>Nog geen materialen geregistreerd.<br>Scan een barcode of voeg handmatig toe.</p></div>';
+    return;
+  }
+  const grouped = {};
+  SECTIONS.forEach(s => grouped[s] = []);
+  items.forEach(item => { const sec = grouped[item.section] !== undefined ? item.section : 'Overig'; grouped[sec].push(item); });
+  let html = '';
+  SECTIONS.forEach(sec => {
+    const group = grouped[sec];
+    if (!group.length) return;
+    html += '<div class="section-group"><div class="section-label">' + sec + '</div>';
+    group.forEach(item => {
+      html += '<div class="item-card"><div class="item-info"><div class="item-name">' + escHtml(item.name) + '</div><div class="item-meta">' + (item.code || 'handmatig') + '</div></div><div class="item-controls"><button onclick="changeQty(' + item.id + ', -1)">−</button><span class="item-qty">' + item.qty + '</span><button onclick="changeQty(' + item.id + ', 1)">＋</button></div><button class="item-delete" onclick="deleteItem(' + item.id + ')">✕</button></div>';
+    });
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function exportPDF() {
+  if (!items.length) { showToast('Geen items om te exporteren', 'error'); return; }
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('nl-NL', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const timeStr = now.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' });
+  const grouped = {};
+  SECTIONS.forEach(s => grouped[s] = []);
+  items.forEach(item => { const sec = grouped[item.section] !== undefined ? item.section : 'Overig'; grouped[sec].push(item); });
+  let sectionsHtml = '';
+  SECTIONS.forEach(sec => {
+    const group = grouped[sec];
+    if (!group.length) return;
+    let rows = group.map(item => '<div class="pdf-item"><div class="pdf-item-left"><div class="pdf-item-name">' + escHtml(item.name) + '</div><div class="pdf-item-code">' + (item.code || 'handmatig') + '</div></div><div class="pdf-item-qty">× ' + item.qty + '</div></div>').join('');
+    sectionsHtml += '<div class="pdf-section"><div class="pdf-section-title">' + sec + '</div>' + rows + '</div>';
+  });
+  const totalItems = items.reduce((sum, i) => sum + i.qty, 0);
+  document.getElementById('pdf-output').innerHTML = '<div class="pdf-header"><h1>Materiaalregistratie</h1><p>' + (project.name || 'Project') + (project.client ? ' — ' + project.client : '') + ' | ' + dateStr + ' ' + timeStr + ' | ' + totalItems + ' stuks totaal</p></div>' + sectionsHtml + '<div class="pdf-footer">Gegenereerd met MatTrack · ' + dateStr + '</div>';
+  const pdfEl = document.getElementById('pdf-output');
+  pdfEl.style.display = 'block';
+  const filename = 'materialen_' + (project.name || 'project').replace(/\s+/g,'_') + '_' + dateStr.replace(/\//g,'-') + '.pdf';
+  html2pdf().set({ margin: 0, filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(pdfEl).save().then(() => { pdfEl.style.display = 'none'; showToast('✓ PDF opgeslagen', 'success'); });
+}
+let toastTimer;
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+updateProjectBadge();
+render();
+</script>
+</body>
+</html>
