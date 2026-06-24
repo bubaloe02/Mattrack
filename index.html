@@ -365,8 +365,46 @@ body.large-mode .item-qty { font-size: 18px; min-width: 36px; }
 .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
 .btn-blue { background: var(--blue); color: #fff; }
 .btn-green { background: var(--green); color: #000; }
+.btn-red { background: var(--red); color: #fff; }
 
-/* ── CAMERA ── */
+/* ── SEARCH BAR ── */
+.search-bar-wrap {
+  padding: 8px 16px 0;
+}
+.search-bar-wrap input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 8px 12px;
+  outline: none;
+}
+.search-bar-wrap input:focus { border-color: var(--accent); }
+
+/* ── SWIPE-TO-DELETE ── */
+.item-card-wrap {
+  position: relative;
+  overflow: hidden;
+}
+.item-card-swipe-bg {
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 80px;
+  background: var(--red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 20px;
+  pointer-events: none;
+}
+.item-card {
+  transition: transform 0.15s ease;
+  will-change: transform;
+}
 .camera-container {
   display: none;
   position: fixed;
@@ -495,6 +533,14 @@ select.field option { background: var(--surface2); }
 }
 .hi-row:last-child { border-bottom: none; }
 .hi-name { color: var(--text); }
+.hi-section {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 0 3px;
+}
 .hi-qty { font-family: var(--mono); color: var(--accent); font-weight: 600; }
 
 /* ── TEMPLATES TAB ── */
@@ -637,6 +683,9 @@ select.field option { background: var(--surface2); }
   <div class="list-header">
     <span class="list-title">Gebruikte materialen</span>
     <span class="item-count" id="itemCount">0 items</span>
+  </div>
+  <div class="search-bar-wrap">
+    <input type="text" id="searchInput" placeholder="Zoeken…" oninput="render()" autocomplete="off">
   </div>
   <div id="itemsList"></div>
 </div>
@@ -791,6 +840,15 @@ select.field option { background: var(--surface2); }
   </div>
 </div>
 
+<div class="overlay center" id="confirmModal">
+  <div class="sheet rounded">
+    <p id="confirmMsg" style="font-size:15px; font-weight:600; text-align:center; margin-bottom:20px; line-height:1.5"></p>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="_confirmResolve(false)">Annuleren</button>
+      <button class="btn btn-red" id="confirmOkBtn" onclick="_confirmResolve(true)">Bevestigen</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 <div id="pdf-out"></div>
 
@@ -1039,14 +1097,24 @@ function handlePhoto(id, input) {
 // ── RENDER ────────────────────────────────────────────────────────────────────
 function render() {
   const el = document.getElementById('itemsList');
+  const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+  const visible = q ? items.filter(it =>
+    it.name.toLowerCase().includes(q) ||
+    (it.code && it.code.toLowerCase().includes(q)) ||
+    (library[it.code]?.articleCode || '').toLowerCase().includes(q)
+  ) : items;
   document.getElementById('itemCount').textContent = items.length + ' items';
   if (!items.length) {
     el.innerHTML = '<div class="empty"><div class="empty-icon">📦</div><p>Nog geen materialen.<br>Scan een barcode of voeg handmatig toe.</p></div>';
     return;
   }
+  if (q && !visible.length) {
+    el.innerHTML = '<div class="empty"><p>Geen resultaten voor "' + esc(q) + '".</p></div>';
+    return;
+  }
   const grouped = {};
   SECTIONS.forEach(s => grouped[s] = []);
-  items.forEach(it => {
+  visible.forEach(it => {
     const s = grouped[it.section] !== undefined ? it.section : 'Overig';
     grouped[s].push(it);
   });
@@ -1061,28 +1129,59 @@ function render() {
         : '📷';
       const noteText = it.note ? esc(it.note) : '+ notitie';
       const noteClass = it.note ? 'item-note' : 'item-note empty';
-      html += `<div class="item-card">
-        <div class="item-thumb" onclick="triggerPhoto(${it.id})">
-          ${it.photo ? `<img src="${it.photo}" alt="">` : '📷'}
-          <input type="file" accept="image/*" capture="environment"
-            id="photoInput_${it.id}" onchange="handlePhoto(${it.id}, this)">
+      html += `<div class="item-card-wrap" data-id="${it.id}">
+        <div class="item-card-swipe-bg">🗑</div>
+        <div class="item-card">
+          <div class="item-thumb" onclick="triggerPhoto(${it.id})">
+            ${it.photo ? `<img src="${it.photo}" alt="">` : '📷'}
+            <input type="file" accept="image/*" capture="environment"
+              id="photoInput_${it.id}" onchange="handlePhoto(${it.id}, this)">
+          </div>
+          <div class="item-info">
+            <div class="item-name">${esc(it.name)}</div>
+            <div class="item-sub">${library[it.code]?.articleCode || it.code || 'handmatig'}</div>
+            <div class="${noteClass}" onclick="openNote(${it.id})">${noteText}</div>
+          </div>
+          <div class="item-controls">
+            <button onclick="changeQty(${it.id},-1)">−</button>
+            <span class="item-qty">${it.qty}</span>
+            <button onclick="changeQty(${it.id},1)">＋</button>
+          </div>
+          <button class="item-del" onclick="deleteItem(${it.id})">✕</button>
         </div>
-        <div class="item-info">
-          <div class="item-name">${esc(it.name)}</div>
-          <div class="item-sub">${library[it.code]?.articleCode || it.code || 'handmatig'}</div>
-          <div class="${noteClass}" onclick="openNote(${it.id})">${noteText}</div>
-        </div>
-        <div class="item-controls">
-          <button onclick="changeQty(${it.id},-1)">−</button>
-          <span class="item-qty">${it.qty}</span>
-          <button onclick="changeQty(${it.id},1)">＋</button>
-        </div>
-        <button class="item-del" onclick="deleteItem(${it.id})">✕</button>
       </div>`;
     });
     html += '</div>';
   });
   el.innerHTML = html;
+  initSwipe();
+}
+
+// ── SWIPE-TO-DELETE ───────────────────────────────────────────────────────────
+function initSwipe() {
+  const THRESHOLD = 72;
+  document.querySelectorAll('.item-card-wrap').forEach(wrap => {
+    const card = wrap.querySelector('.item-card');
+    let startX = 0, curX = 0, dragging = false;
+    wrap.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      curX = 0; dragging = true;
+    }, { passive: true });
+    wrap.addEventListener('touchmove', e => {
+      if (!dragging) return;
+      curX = e.touches[0].clientX - startX;
+      if (curX > 0) { curX = 0; return; }
+      card.style.transform = `translateX(${Math.max(curX, -THRESHOLD)}px)`;
+    }, { passive: true });
+    wrap.addEventListener('touchend', () => {
+      dragging = false;
+      if (curX <= -THRESHOLD) {
+        deleteItem(Number(wrap.dataset.id));
+      } else {
+        card.style.transform = '';
+      }
+    });
+  });
 }
 
 // ── TIMER ─────────────────────────────────────────────────────────────────────
@@ -1125,8 +1224,8 @@ function toggleTimer() {
   }
   save();
 }
-function resetTimer() {
-  if (!confirm('Timer resetten?')) return;
+async function resetTimer() {
+  if (!await appConfirm('Timer resetten?')) return;
   clearInterval(timerInterval);
   timerRunning = false; timerStart = null; timerAccum = 0;
   document.getElementById('timerDisplay').textContent = '00:00:00';
@@ -1150,9 +1249,9 @@ function restoreTimer() {
 }
 
 // ── FINISH PROJECT ────────────────────────────────────────────────────────────
-function finishProject() {
+async function finishProject() {
   if (!items.length) { showToast('Geen items om af te ronden', 'error'); return; }
-  if (!confirm('Project afronden en opslaan in geschiedenis?')) return;
+  if (!await appConfirm('Project afronden en opslaan in geschiedenis?', 'Afronden')) return;
   const elapsed = getElapsedMs();
   const entry = {
     id: Date.now(),
@@ -1182,9 +1281,16 @@ function renderHistory() {
   }
   el.innerHTML = history.map(h => {
     const total = h.items.reduce((s, i) => s + i.qty, 0);
-    const rows = h.items.map(i =>
-      `<div class="hi-row"><span class="hi-name">${esc(i.name)}</span><span class="hi-qty">×${i.qty}</span></div>`
-    ).join('');
+    const hGrouped = {};
+    SECTIONS.forEach(s => hGrouped[s] = []);
+    h.items.forEach(i => { const s = hGrouped[i.section] !== undefined ? i.section : 'Overig'; hGrouped[s].push(i); });
+    let rows = '';
+    SECTIONS.forEach(sec => {
+      const g = hGrouped[sec];
+      if (!g.length) return;
+      rows += `<div class="hi-section">${esc(sec)}</div>`;
+      rows += g.map(i => `<div class="hi-row"><span class="hi-name">${esc(i.name)}</span><span class="hi-qty">×${i.qty}</span></div>`).join('');
+    });
     return `<div class="history-card">
       <div class="history-card-header" onclick="toggleHistory(${h.id})">
         <div>
@@ -1205,23 +1311,23 @@ function toggleHistory(id) {
   const el = document.getElementById('hi-' + id);
   el.classList.toggle('open');
 }
-function loadFromHistory(id) {
+async function loadFromHistory(id) {
   const h = history.find(x => x.id === id);
   if (!h) return;
-  if (items.length && !confirm('Huidig project vervangen?')) return;
+  if (items.length && !await appConfirm('Huidig project vervangen?')) return;
   items = JSON.parse(JSON.stringify(h.items));
   project.name = h.name; project.client = h.client || '';
   save(); updateProjectBar(); render(); switchTab('current');
   showToast('Project herladen', 'info');
 }
-function deleteHistory(id) {
-  if (!confirm('Verwijder dit project uit geschiedenis?')) return;
+async function deleteHistory(id) {
+  if (!await appConfirm('Verwijder dit project uit geschiedenis?', 'Verwijderen')) return;
   history = history.filter(h => h.id !== id);
   save(); renderHistory();
 }
-function clearHistory() {
+async function clearHistory() {
   if (!history.length) return;
-  if (!confirm('Hele geschiedenis wissen?')) return;
+  if (!await appConfirm('Hele geschiedenis wissen?', 'Wissen')) return;
   history = []; save(); renderHistory();
 }
 
@@ -1263,17 +1369,17 @@ function renderTemplates() {
     </div>`;
   }).join('');
 }
-function loadTemplate(id) {
+async function loadTemplate(id) {
   const t = templates.find(x => x.id === id);
   if (!t) return;
-  if (items.length && !confirm('Huidig project vervangen met template?')) return;
+  if (items.length && !await appConfirm('Huidig project vervangen met template?')) return;
   items = JSON.parse(JSON.stringify(t.items));
   project.name = t.name;
   save(); updateProjectBar(); render(); switchTab('current');
   showToast('Template geladen', 'info');
 }
-function deleteTemplate(id) {
-  if (!confirm('Template verwijderen?')) return;
+async function deleteTemplate(id) {
+  if (!await appConfirm('Template verwijderen?', 'Verwijderen')) return;
   templates = templates.filter(t => t.id !== id);
   save(); renderTemplates();
 }
@@ -1292,14 +1398,19 @@ function applySettings() {
   document.getElementById('largeModeToggle').classList.toggle('on', settings.largeMode);
   document.getElementById('beepToggle').classList.toggle('on', settings.beep);
 }
-function clearLibrary() {
-  if (!confirm('Alle opgeslagen barcodes verwijderen?')) return;
+async function clearLibrary() {
+  if (!await appConfirm('Alle opgeslagen barcodes verwijderen?', 'Verwijderen')) return;
   library = {}; save(); showToast('Bibliotheek gewist', 'info');
 }
-function clearAll() {
+async function clearAll() {
   if (!items.length) return;
-  if (!confirm('Alle items verwijderen?')) return;
-  items = []; save(); render();
+  if (!await appConfirm('Alle items verwijderen?', 'Verwijderen')) return;
+  items = [];
+  clearInterval(timerInterval);
+  timerRunning = false; timerStart = null; timerAccum = 0;
+  document.getElementById('timerBar').style.display = 'none';
+  document.getElementById('timerDisplay').textContent = '00:00:00';
+  save(); render();
 }
 
 // ── WHATSAPP ──────────────────────────────────────────────────────────────────
@@ -1319,7 +1430,8 @@ function sendWhatsapp() {
     msg += `*${sec}*\n`;
     g.forEach(it => {
       msg += `• ${it.name} × ${it.qty}`;
-      if (it.code) msg += ` [${it.code}]`;
+      const artCode = library[it.code]?.articleCode || it.code;
+      if (artCode) msg += ` [${artCode}]`;
       if (it.note) msg += ` — ${it.note}`;
       msg += '\n';
     });
@@ -1395,6 +1507,17 @@ function generatePDF(itms, name, client, dateStr, duration) {
 // ── MODAL HELPERS ─────────────────────────────────────────────────────────────
 function openModal(id)  { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// ── CONFIRM HELPER (replaces native confirm() for better mobile UX) ───────────
+let _confirmResolve = () => {};
+function appConfirm(msg, okLabel = 'Bevestigen') {
+  return new Promise(resolve => {
+    document.getElementById('confirmMsg').textContent = msg;
+    document.getElementById('confirmOkBtn').textContent = okLabel;
+    _confirmResolve = val => { closeModal('confirmModal'); resolve(val); };
+    openModal('confirmModal');
+  });
+}
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────
 let toastTimer;
