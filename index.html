@@ -927,7 +927,10 @@ async function handleCode(code) {
   }
   showToast('⌛ Zoeken…');
   try {
-    const r = await fetch('https://api.upcitemdb.com/prod/trial/lookup?upc=' + code);
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch('https://api.upcitemdb.com/prod/trial/lookup?upc=' + code, { signal: ctrl.signal });
+    clearTimeout(timeout);
     const d = await r.json();
     if (d.items?.[0]?.title) { openLookupModal(code, d.items[0].title, 'Overig'); return; }
   } catch(e) {}
@@ -1066,7 +1069,7 @@ function render() {
         </div>
         <div class="item-info">
           <div class="item-name">${esc(it.name)}</div>
-          <div class="item-sub">${it.code || 'handmatig'}</div>
+          <div class="item-sub">${library[it.code]?.articleCode || it.code || 'handmatig'}</div>
           <div class="${noteClass}" onclick="openNote(${it.id})">${noteText}</div>
         </div>
         <div class="item-controls">
@@ -1337,7 +1340,7 @@ function exportHistoryPDF(id) {
   if (!h) return;
   generatePDF(h.items, h.name, h.client, h.date, h.duration);
 }
-function generatePDF(itms, name, client, dateStr) {
+function generatePDF(itms, name, client, dateStr, duration) {
   const BRAND_LOGO_SRC = document.getElementById('brandLogo')?.src || '';
   const now = new Date();
   const d = dateStr || now.toLocaleDateString('nl-NL', { day:'2-digit', month:'2-digit', year:'numeric' });
@@ -1353,14 +1356,14 @@ function generatePDF(itms, name, client, dateStr) {
       <div class="pdf-row">
         <div class="pdf-left">
           <div class="pdf-name">${esc(it.name)}</div>
-          <div class="pdf-code">${it.code || 'handmatig'}${it.note ? ' · ' + esc(it.note) : ''}</div>
+          <div class="pdf-code">${library[it.code]?.articleCode || it.code || 'handmatig'}${it.note ? ' · ' + esc(it.note) : ''}</div>
         </div>
         <div class="pdf-qty">× ${it.qty}</div>
       </div>`).join('');
     secsHtml += `<div class="pdf-sec"><div class="pdf-sec-title">${sec}</div>${rows}</div>`;
   });
   const total = itms.reduce((s, i) => s + i.qty, 0);
-  const durationStr = (typeof dateStr === 'undefined' || !dateStr) && getElapsedMs() > 0 ? ' &nbsp;|&nbsp; ⏱ ' + formatMs(getElapsedMs()) : (arguments[4] ? ' &nbsp;|&nbsp; ⏱ ' + arguments[4] : '');
+  const durationStr = duration ? ' &nbsp;|&nbsp; ⏱ ' + duration : (!dateStr && getElapsedMs() > 0 ? ' &nbsp;|&nbsp; ⏱ ' + formatMs(getElapsedMs()) : '');
   document.getElementById('pdf-out').innerHTML = `
     <div class="pdf-h">
       <div class="pdf-h-left">
