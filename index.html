@@ -305,11 +305,19 @@ body.large-mode .item-controls button { width: 42px; height: 46px; font-size: 22
   font-family: var(--mono);
   font-size: 15px;
   font-weight: 500;
-  min-width: 30px;
+  width: 44px;
   text-align: center;
   color: var(--accent);
+  background: none;
+  border: none;
+  outline: none;
+  padding: 0;
+  -moz-appearance: textfield;
 }
-body.large-mode .item-qty { font-size: 18px; min-width: 36px; }
+.item-qty::-webkit-outer-spin-button,
+.item-qty::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.item-qty:focus { background: var(--border); border-radius: 4px; }
+body.large-mode .item-qty { font-size: 18px; width: 52px; }
 .item-del {
   background: none;
   border: none;
@@ -1045,6 +1053,15 @@ function changeQty(id, d) {
   if (it.qty === 0) items = items.filter(i => i.id !== id);
   save(); render();
 }
+function setQty(id, val) {
+  const it = items.find(i => i.id === id);
+  if (!it) return;
+  let n = parseInt(val, 10);
+  if (isNaN(n) || n < 0) n = it.qty;   // ignore invalid input, keep current
+  it.qty = n;
+  if (it.qty === 0) items = items.filter(i => i.id !== id);
+  save(); render();
+}
 function deleteItem(id) {
   items = items.filter(i => i.id !== id);
   save(); render();
@@ -1144,7 +1161,10 @@ function render() {
           </div>
           <div class="item-controls">
             <button onclick="changeQty(${it.id},-1)">−</button>
-            <span class="item-qty">${it.qty}</span>
+            <input class="item-qty" type="text" inputmode="numeric" pattern="[0-9]*"
+              value="${it.qty}" onfocus="this.select()"
+              onchange="setQty(${it.id}, this.value)"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
             <button onclick="changeQty(${it.id},1)">＋</button>
           </div>
           <button class="item-del" onclick="deleteItem(${it.id})">✕</button>
