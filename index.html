@@ -257,7 +257,9 @@ body.large-mode { font-size: 1.12em; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
 }
+.item-name:active { color: var(--accent); }
 body.large-mode .item-name { font-size: 16px; }
 .item-sub {
   font-family: var(--mono);
@@ -754,7 +756,8 @@ select.field option { background: var(--surface2); }
 
 <!-- BOTTOM BAR (current tab only) -->
 <div class="bottom-bar" id="bottomBar">
-  <button class="btn btn-ghost" onclick="finishProject()">✅ Afronden</button>
+  <button class="btn btn-ghost" id="finishBtn" onclick="finishProject()">✅ Afronden</button>
+  <button class="btn btn-green" id="saveEditBtn" onclick="saveEditedProject()" style="display:none">💾 Opslaan</button>
   <button class="btn btn-primary" onclick="exportPDF()">📄 Export PDF</button>
 </div>
 
@@ -775,6 +778,7 @@ select.field option { background: var(--surface2); }
     <h3>Project instellen</h3>
     <input class="field" type="text" id="projNameInput" placeholder="Projectnaam (bijv. Scania FT-123-B)">
     <input class="field" type="text" id="projClientInput" placeholder="Klant / voertuig (optioneel)">
+    <input class="field" type="text" id="projWorkersInput" placeholder="Medewerkers (bijv. Jan, Piet)">
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeModal('projectModal')">Annuleren</button>
       <button class="btn btn-primary" onclick="saveProject()">Opslaan</button>
@@ -820,6 +824,18 @@ select.field option { background: var(--surface2); }
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeModal('noteModal')">Annuleren</button>
       <button class="btn btn-primary" onclick="saveNote()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT NAME MODAL -->
+<div class="overlay center" id="editNameModal">
+  <div class="sheet rounded">
+    <h3>Naam wijzigen</h3>
+    <input class="field" type="text" id="editNameInput" placeholder="Naam artikel…">
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal('editNameModal')">Annuleren</button>
+      <button class="btn btn-primary" onclick="saveItemName()">Opslaan</button>
     </div>
   </div>
 </div>
@@ -875,14 +891,16 @@ const SECTIONS = [
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let items    = load('mt_items', []);
 let library  = load('mt_lib', {});
-let project  = load('mt_proj', { name: '', client: '' });
+let project  = load('mt_proj', { name: '', client: '', workers: '' });
 let history  = load('mt_history', []);
 let templates= load('mt_templates', []);
 let settings = load('mt_settings', { largeMode: false, beep: true });
+let editingHistoryId = load('mt_editing', null);   // id of history entry being edited, else null
 
 let lookupQty   = 1;
 let pendingCode = null;
 let activeNote  = null;
+let activeEditName = null;
 let scannerRunning = false;
 let scanCooldown   = false;
 let currentTab  = 'current';
@@ -905,6 +923,7 @@ function save() {
     localStorage.setItem('mt_history',   JSON.stringify(history));
     localStorage.setItem('mt_templates', JSON.stringify(templates));
     localStorage.setItem('mt_settings',  JSON.stringify(settings));
+    localStorage.setItem('mt_editing',   JSON.stringify(editingHistoryId));
     localStorage.setItem('mt_timerStart',JSON.stringify(timerStart));
     localStorage.setItem('mt_timerAccum',JSON.stringify(timerAccum));
   } catch (e) {
@@ -927,18 +946,29 @@ function switchTab(tab) {
 
 // ── PROJECT ───────────────────────────────────────────────────────────────────
 function openProjectModal() {
-  document.getElementById('projNameInput').value   = project.name;
-  document.getElementById('projClientInput').value = project.client;
+  document.getElementById('projNameInput').value    = project.name;
+  document.getElementById('projClientInput').value  = project.client;
+  document.getElementById('projWorkersInput').value = project.workers || '';
   openModal('projectModal');
 }
 function saveProject() {
-  project.name   = document.getElementById('projNameInput').value.trim() || 'Project';
-  project.client = document.getElementById('projClientInput').value.trim();
+  project.name    = document.getElementById('projNameInput').value.trim() || 'Project';
+  project.client  = document.getElementById('projClientInput').value.trim();
+  project.workers = document.getElementById('projWorkersInput').value.trim();
   save(); updateProjectBar(); closeModal('projectModal');
 }
 function updateProjectBar() {
-  document.getElementById('projName').textContent = project.name || 'Nieuw project — tik om in te stellen';
-  document.getElementById('projMeta').textContent = project.client || '';
+  document.getElementById('projName').textContent =
+    (editingHistoryId ? '✏️ ' : '') + (project.name || 'Nieuw project — tik om in te stellen');
+  const parts = [];
+  if (project.client)  parts.push(project.client);
+  if (project.workers) parts.push('👷 ' + project.workers);
+  document.getElementById('projMeta').textContent = parts.join(' · ');
+}
+function updateBottomBar() {
+  const editing = editingHistoryId != null && history.some(h => h.id === editingHistoryId);
+  document.getElementById('finishBtn').style.display   = editing ? 'none' : '';
+  document.getElementById('saveEditBtn').style.display = editing ? '' : 'none';
 }
 
 // ── CAMERA ────────────────────────────────────────────────────────────────────
@@ -1081,6 +1111,27 @@ function saveNote() {
   closeModal('noteModal'); activeNote = null;
 }
 
+// ── EDIT ITEM NAME ────────────────────────────────────────────────────────────
+function openEditName(id) {
+  activeEditName = id;
+  const it = items.find(i => i.id === id);
+  document.getElementById('editNameInput').value = it?.name || '';
+  openModal('editNameModal');
+  setTimeout(() => { const el = document.getElementById('editNameInput'); el.focus(); el.select(); }, 120);
+}
+function saveItemName() {
+  const it = items.find(i => i.id === activeEditName);
+  const name = document.getElementById('editNameInput').value.trim();
+  if (!name) { showToast('Geef een naam op', 'error'); return; }
+  if (it) {
+    it.name = name;
+    // keep the barcode library in sync so future scans use the corrected name
+    if (it.code && library[it.code]) library[it.code].name = name;
+    save(); render();
+  }
+  closeModal('editNameModal'); activeEditName = null;
+}
+
 // ── PHOTO ─────────────────────────────────────────────────────────────────────
 function triggerPhoto(id) {
   const inp = document.getElementById('photoInput_' + id);
@@ -1155,7 +1206,7 @@ function render() {
               id="photoInput_${it.id}" onchange="handlePhoto(${it.id}, this)">
           </div>
           <div class="item-info">
-            <div class="item-name">${esc(it.name)}</div>
+            <div class="item-name" onclick="openEditName(${it.id})">${esc(it.name)}</div>
             <div class="item-sub">${library[it.code]?.articleCode || it.code || 'handmatig'}</div>
             <div class="${noteClass}" onclick="openNote(${it.id})">${noteText}</div>
           </div>
@@ -1277,19 +1328,34 @@ async function finishProject() {
     id: Date.now(),
     name: project.name || 'Project',
     client: project.client,
+    workers: project.workers || '',
     date: new Date().toLocaleDateString('nl-NL'),
     duration: elapsed ? formatMs(elapsed) : null,
     items: JSON.parse(JSON.stringify(items))
   };
   history.unshift(entry);
   items = [];
+  editingHistoryId = null;
   // Reset timer for next project
   clearInterval(timerInterval);
   timerRunning = false; timerStart = null; timerAccum = 0;
   document.getElementById('timerBar').style.display = 'none';
   document.getElementById('timerDisplay').textContent = '00:00:00';
-  save(); render();
+  save(); render(); updateBottomBar();
   showToast('✓ Opgeslagen in geschiedenis', 'success');
+}
+
+// ── SAVE EDITS BACK TO AN EXISTING HISTORY ENTRY ──────────────────────────────
+function saveEditedProject() {
+  const h = history.find(x => x.id === editingHistoryId);
+  if (!h) { showToast('Project niet gevonden', 'error'); return; }
+  if (!items.length) { showToast('Geen items om op te slaan', 'error'); return; }
+  h.name    = project.name || 'Project';
+  h.client  = project.client;
+  h.workers = project.workers || '';
+  h.items   = JSON.parse(JSON.stringify(items));
+  save();
+  showToast('✓ Wijzigingen opgeslagen', 'success');
 }
 
 // ── HISTORY ───────────────────────────────────────────────────────────────────
@@ -1315,7 +1381,7 @@ function renderHistory() {
       <div class="history-card-header" onclick="toggleHistory(${h.id})">
         <div>
           <div class="hc-name">${esc(h.name)}</div>
-          <div class="hc-meta">${h.date}${h.client ? ' · ' + esc(h.client) : ''} · ${total} stuks${h.duration ? ' · ⏱ ' + h.duration : ''}</div>
+          <div class="hc-meta">${h.date}${h.client ? ' · ' + esc(h.client) : ''} · ${total} stuks${h.duration ? ' · ⏱ ' + h.duration : ''}${h.workers ? ' · 👷 ' + esc(h.workers) : ''}</div>
         </div>
         <div class="hc-actions">
           <button class="hc-btn" onclick="event.stopPropagation(); loadFromHistory(${h.id})">↩ Herladen</button>
@@ -1336,19 +1402,23 @@ async function loadFromHistory(id) {
   if (!h) return;
   if (items.length && !await appConfirm('Huidig project vervangen?')) return;
   items = JSON.parse(JSON.stringify(h.items));
-  project.name = h.name; project.client = h.client || '';
-  save(); updateProjectBar(); render(); switchTab('current');
-  showToast('Project herladen', 'info');
+  project.name = h.name; project.client = h.client || ''; project.workers = h.workers || '';
+  editingHistoryId = h.id;   // edits will save back to this entry
+  save(); updateProjectBar(); updateBottomBar(); render(); switchTab('current');
+  showToast('Bewerken — wijzig en tik op Opslaan', 'info');
 }
 async function deleteHistory(id) {
   if (!await appConfirm('Verwijder dit project uit geschiedenis?', 'Verwijderen')) return;
   history = history.filter(h => h.id !== id);
+  if (editingHistoryId === id) { editingHistoryId = null; updateProjectBar(); updateBottomBar(); }
   save(); renderHistory();
 }
 async function clearHistory() {
   if (!history.length) return;
   if (!await appConfirm('Hele geschiedenis wissen?', 'Wissen')) return;
-  history = []; save(); renderHistory();
+  history = []; editingHistoryId = null;
+  updateProjectBar(); updateBottomBar();
+  save(); renderHistory();
 }
 
 // ── TEMPLATES ─────────────────────────────────────────────────────────────────
@@ -1395,7 +1465,8 @@ async function loadTemplate(id) {
   if (items.length && !await appConfirm('Huidig project vervangen met template?')) return;
   items = JSON.parse(JSON.stringify(t.items));
   project.name = t.name;
-  save(); updateProjectBar(); render(); switchTab('current');
+  editingHistoryId = null;   // template starts a fresh project, not an edit
+  save(); updateProjectBar(); updateBottomBar(); render(); switchTab('current');
   showToast('Template geladen', 'info');
 }
 async function deleteTemplate(id) {
@@ -1426,11 +1497,12 @@ async function clearAll() {
   if (!items.length) return;
   if (!await appConfirm('Alle items verwijderen?', 'Verwijderen')) return;
   items = [];
+  editingHistoryId = null;
   clearInterval(timerInterval);
   timerRunning = false; timerStart = null; timerAccum = 0;
   document.getElementById('timerBar').style.display = 'none';
   document.getElementById('timerDisplay').textContent = '00:00:00';
-  save(); render();
+  save(); render(); updateProjectBar(); updateBottomBar();
 }
 
 // ── WHATSAPP ──────────────────────────────────────────────────────────────────
@@ -1443,7 +1515,9 @@ function sendWhatsapp() {
   items.forEach(it => { const s = grouped[it.section] !== undefined ? it.section : 'Overig'; grouped[s].push(it); });
   let msg = `*MatTrack — ${project.name || 'Project'}*`;
   if (project.client) msg += ` (${project.client})`;
-  msg += `\n${new Date().toLocaleDateString('nl-NL')}\n\n`;
+  msg += `\n${new Date().toLocaleDateString('nl-NL')}`;
+  if (project.workers) msg += `\n👷 ${project.workers}`;
+  msg += `\n\n`;
   SECTIONS.forEach(sec => {
     const g = grouped[sec];
     if (!g.length) return;
@@ -1465,14 +1539,14 @@ function sendWhatsapp() {
 // ── PDF ───────────────────────────────────────────────────────────────────────
 function exportPDF() {
   if (!items.length) { showToast('Geen items om te exporteren', 'error'); return; }
-  generatePDF(items, project.name || 'Project', project.client);
+  generatePDF(items, project.name || 'Project', project.client, null, null, project.workers);
 }
 function exportHistoryPDF(id) {
   const h = history.find(x => x.id === id);
   if (!h) return;
-  generatePDF(h.items, h.name, h.client, h.date, h.duration);
+  generatePDF(h.items, h.name, h.client, h.date, h.duration, h.workers);
 }
-function generatePDF(itms, name, client, dateStr, duration) {
+function generatePDF(itms, name, client, dateStr, duration, workers) {
   const BRAND_LOGO_SRC = document.getElementById('brandLogo')?.src || '';
   const now = new Date();
   const d = dateStr || now.toLocaleDateString('nl-NL', { day:'2-digit', month:'2-digit', year:'numeric' });
@@ -1501,6 +1575,7 @@ function generatePDF(itms, name, client, dateStr, duration) {
       <div class="pdf-h-left">
         <h1>Materiaalregistratie</h1>
         <p>${esc(name)}${client ? ' — ' + esc(client) : ''} &nbsp;|&nbsp; ${d}${dateStr ? '' : ' ' + t} &nbsp;|&nbsp; ${total} stuks totaal${durationStr}</p>
+        ${workers ? `<p style="margin-top:3px;">Medewerkers: ${esc(workers)}</p>` : ''}
       </div>
       <div class="pdf-h-logo">
         <img src="${BRAND_LOGO_SRC}" alt="v. Beurden">
@@ -1572,6 +1647,7 @@ function seedHellaLibrary() {
 seedHellaLibrary();
 applySettings();
 updateProjectBar();
+updateBottomBar();
 render();
 restoreTimer();
 
